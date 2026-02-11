@@ -4,9 +4,9 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/serdar/gottp/internal/ui/components"
-	"github.com/serdar/gottp/internal/ui/layout"
-	"github.com/serdar/gottp/internal/ui/msgs"
+	"github.com/sadopc/gottp/internal/ui/components"
+	"github.com/sadopc/gottp/internal/ui/layout"
+	"github.com/sadopc/gottp/internal/ui/msgs"
 )
 
 func (a App) handleGlobalKey(msg tea.KeyMsg) tea.Cmd {

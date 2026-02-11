@@ -5,9 +5,9 @@ builds:
     binary: gottp
     ldflags:
       - -s -w
-      - -X github.com/serdar/gottp/pkg/version.Version={{.Version}}
-      - -X github.com/serdar/gottp/pkg/version.Commit={{.ShortCommit}}
-      - -X github.com/serdar/gottp/pkg/version.Date={{.Date}}
+      - -X github.com/sadopc/gottp/pkg/version.Version={{.Version}}
+      - -X github.com/sadopc/gottp/pkg/version.Commit={{.ShortCommit}}
+      - -X github.com/sadopc/gottp/pkg/version.Date={{.Date}}
     goos:
       - linux
       - darwin

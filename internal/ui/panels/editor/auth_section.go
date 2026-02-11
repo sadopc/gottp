@@ -6,9 +6,9 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/serdar/gottp/internal/core/collection"
-	"github.com/serdar/gottp/internal/protocol"
-	"github.com/serdar/gottp/internal/ui/theme"
+	"github.com/sadopc/gottp/internal/core/collection"
+	"github.com/sadopc/gottp/internal/protocol"
+	"github.com/sadopc/gottp/internal/ui/theme"
 )
 
 var authTypes = []string{"none", "basic", "bearer", "apikey", "oauth2", "awsv4", "digest"}

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/serdar/gottp/internal/ui/theme"
+	"github.com/sadopc/gottp/internal/ui/theme"
 )
 
 func TestProtocolSelector_CycleAndSet(t *testing.T) {

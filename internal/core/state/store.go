@@ -1,7 +1,7 @@
 package state
 
 import (
-	"github.com/serdar/gottp/internal/core/collection"
+	"github.com/sadopc/gottp/internal/core/collection"
 )
 
 // OpenTab represents an open request tab.

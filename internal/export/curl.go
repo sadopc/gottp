@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/serdar/gottp/internal/protocol"
+	"github.com/sadopc/gottp/internal/protocol"
 )
 
 // AsCurl converts a request to a curl command string.

@@ -1,4 +1,4 @@
-module github.com/serdar/gottp
+module github.com/sadopc/gottp
 
 go 1.25.7
 

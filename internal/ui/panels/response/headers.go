@@ -9,7 +9,7 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/serdar/gottp/internal/ui/theme"
+	"github.com/sadopc/gottp/internal/ui/theme"
 )
 
 // HeadersModel displays response headers as a two-column list.

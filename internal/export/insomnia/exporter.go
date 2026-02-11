@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/serdar/gottp/internal/core/collection"
+	"github.com/sadopc/gottp/internal/core/collection"
 )
 
 type insomniaExport struct {

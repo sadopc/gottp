@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/serdar/gottp/internal/core/collection"
+	"github.com/sadopc/gottp/internal/core/collection"
 )
 
 // HAR represents the HAR 1.2 format.

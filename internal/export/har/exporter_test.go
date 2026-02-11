@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/serdar/gottp/internal/protocol"
+	"github.com/sadopc/gottp/internal/protocol"
 )
 
 func TestExport(t *testing.T) {

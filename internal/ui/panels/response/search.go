@@ -7,7 +7,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/serdar/gottp/internal/ui/theme"
+	"github.com/sadopc/gottp/internal/ui/theme"
 )
 
 // SearchBar provides search functionality within the response body.

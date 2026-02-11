@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/serdar/gottp/internal/protocol"
+	"github.com/sadopc/gottp/internal/protocol"
 )
 
 // Client implements the GraphQL protocol via HTTP POST. It also supports

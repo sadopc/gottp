@@ -13,7 +13,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/tidwall/pretty"
 
-	"github.com/serdar/gottp/internal/ui/theme"
+	"github.com/sadopc/gottp/internal/ui/theme"
 )
 
 // BodyModel displays the response body with syntax highlighting.

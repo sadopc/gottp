@@ -1,7 +1,7 @@
 package templates
 
 import (
-	"github.com/serdar/gottp/internal/core/collection"
+	"github.com/sadopc/gottp/internal/core/collection"
 )
 
 // Template represents a pre-built request template.

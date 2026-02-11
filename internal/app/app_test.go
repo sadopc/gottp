@@ -6,9 +6,9 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/serdar/gottp/internal/config"
-	"github.com/serdar/gottp/internal/core/collection"
-	"github.com/serdar/gottp/internal/ui/msgs"
+	"github.com/sadopc/gottp/internal/config"
+	"github.com/sadopc/gottp/internal/core/collection"
+	"github.com/sadopc/gottp/internal/ui/msgs"
 )
 
 // testApp creates a minimal App for testing without side effects

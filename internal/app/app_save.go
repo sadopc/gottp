@@ -7,14 +7,14 @@ import (
 	"github.com/atotto/clipboard"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/serdar/gottp/internal/core/collection"
-	"github.com/serdar/gottp/internal/core/environment"
-	"github.com/serdar/gottp/internal/export"
-	"github.com/serdar/gottp/internal/export/codegen"
-	curlimport "github.com/serdar/gottp/internal/import/curl"
-	"github.com/serdar/gottp/internal/protocol"
-	"github.com/serdar/gottp/internal/templates"
-	"github.com/serdar/gottp/internal/ui/msgs"
+	"github.com/sadopc/gottp/internal/core/collection"
+	"github.com/sadopc/gottp/internal/core/environment"
+	"github.com/sadopc/gottp/internal/export"
+	"github.com/sadopc/gottp/internal/export/codegen"
+	curlimport "github.com/sadopc/gottp/internal/import/curl"
+	"github.com/sadopc/gottp/internal/protocol"
+	"github.com/sadopc/gottp/internal/templates"
+	"github.com/sadopc/gottp/internal/ui/msgs"
 )
 
 func (a App) saveCollection() (tea.Model, tea.Cmd) {

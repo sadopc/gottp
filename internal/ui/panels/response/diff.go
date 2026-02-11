@@ -8,8 +8,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/serdar/gottp/internal/diff"
-	"github.com/serdar/gottp/internal/ui/theme"
+	"github.com/sadopc/gottp/internal/diff"
+	"github.com/sadopc/gottp/internal/ui/theme"
 )
 
 // DiffModel displays a diff between two response bodies.

@@ -6,14 +6,14 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/serdar/gottp/internal/core/collection"
-	importutil "github.com/serdar/gottp/internal/import"
-	curlimport "github.com/serdar/gottp/internal/import/curl"
-	"github.com/serdar/gottp/internal/import/har"
-	"github.com/serdar/gottp/internal/import/insomnia"
-	"github.com/serdar/gottp/internal/import/openapi"
-	"github.com/serdar/gottp/internal/import/postman"
-	"github.com/serdar/gottp/internal/protocol"
+	"github.com/sadopc/gottp/internal/core/collection"
+	importutil "github.com/sadopc/gottp/internal/import"
+	curlimport "github.com/sadopc/gottp/internal/import/curl"
+	"github.com/sadopc/gottp/internal/import/har"
+	"github.com/sadopc/gottp/internal/import/insomnia"
+	"github.com/sadopc/gottp/internal/import/openapi"
+	"github.com/sadopc/gottp/internal/import/postman"
+	"github.com/sadopc/gottp/internal/protocol"
 )
 
 func importCmd() {

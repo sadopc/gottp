@@ -7,8 +7,8 @@ import (
 	"os"
 	"os/signal"
 
-	"github.com/serdar/gottp/internal/core/collection"
-	"github.com/serdar/gottp/internal/mock"
+	"github.com/sadopc/gottp/internal/core/collection"
+	"github.com/sadopc/gottp/internal/mock"
 )
 
 func mockCmd() {

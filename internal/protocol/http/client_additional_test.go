@@ -10,7 +10,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/serdar/gottp/internal/protocol"
+	"github.com/sadopc/gottp/internal/protocol"
 )
 
 func TestParseNoProxyAndShouldBypassProxy(t *testing.T) {

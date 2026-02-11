@@ -6,10 +6,10 @@ import (
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/serdar/gottp/internal/core/collection"
-	"github.com/serdar/gottp/internal/protocol"
-	"github.com/serdar/gottp/internal/ui/components"
-	"github.com/serdar/gottp/internal/ui/theme"
+	"github.com/sadopc/gottp/internal/core/collection"
+	"github.com/sadopc/gottp/internal/protocol"
+	"github.com/sadopc/gottp/internal/ui/components"
+	"github.com/sadopc/gottp/internal/ui/theme"
 )
 
 var httpMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}

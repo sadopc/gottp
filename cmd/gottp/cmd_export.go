@@ -7,12 +7,12 @@ import (
 	"os"
 	"strings"
 
-	"github.com/serdar/gottp/internal/core/collection"
-	"github.com/serdar/gottp/internal/export"
-	harexport "github.com/serdar/gottp/internal/export/har"
-	insomniaexport "github.com/serdar/gottp/internal/export/insomnia"
-	postmanexport "github.com/serdar/gottp/internal/export/postman"
-	"github.com/serdar/gottp/internal/protocol"
+	"github.com/sadopc/gottp/internal/core/collection"
+	"github.com/sadopc/gottp/internal/export"
+	harexport "github.com/sadopc/gottp/internal/export/har"
+	insomniaexport "github.com/sadopc/gottp/internal/export/insomnia"
+	postmanexport "github.com/sadopc/gottp/internal/export/postman"
+	"github.com/sadopc/gottp/internal/protocol"
 )
 
 func exportCmd() {

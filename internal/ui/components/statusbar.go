@@ -8,8 +8,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/dustin/go-humanize"
-	"github.com/serdar/gottp/internal/ui/msgs"
-	"github.com/serdar/gottp/internal/ui/theme"
+	"github.com/sadopc/gottp/internal/ui/msgs"
+	"github.com/sadopc/gottp/internal/ui/theme"
 )
 
 // clearStatusMsg clears a temporary status message.

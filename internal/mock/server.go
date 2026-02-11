@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/serdar/gottp/internal/core/collection"
+	"github.com/sadopc/gottp/internal/core/collection"
 )
 
 // route represents a matched collection request mapped to an HTTP endpoint.

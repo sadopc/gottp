@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/serdar/gottp/internal/core/collection"
+	"github.com/sadopc/gottp/internal/core/collection"
 )
 
 // WorkflowResult holds the results of a workflow execution.

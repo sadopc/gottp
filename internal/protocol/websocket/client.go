@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
-	"github.com/serdar/gottp/internal/protocol"
+	"github.com/sadopc/gottp/internal/protocol"
 )
 
 // WSClientMessage represents a message received from a WebSocket server.

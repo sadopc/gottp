@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/serdar/gottp/internal/core/collection"
-	"github.com/serdar/gottp/internal/core/environment"
+	"github.com/sadopc/gottp/internal/core/collection"
+	"github.com/sadopc/gottp/internal/core/environment"
 )
 
 func validateCmd() {

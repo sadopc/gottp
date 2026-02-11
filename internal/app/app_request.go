@@ -8,14 +8,14 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	oauth2auth "github.com/serdar/gottp/internal/auth/oauth2"
-	"github.com/serdar/gottp/internal/core/environment"
-	"github.com/serdar/gottp/internal/core/history"
-	"github.com/serdar/gottp/internal/protocol"
-	"github.com/serdar/gottp/internal/protocol/graphql"
-	"github.com/serdar/gottp/internal/scripting"
-	"github.com/serdar/gottp/internal/ui/msgs"
-	"github.com/serdar/gottp/internal/ui/panels/response"
+	oauth2auth "github.com/sadopc/gottp/internal/auth/oauth2"
+	"github.com/sadopc/gottp/internal/core/environment"
+	"github.com/sadopc/gottp/internal/core/history"
+	"github.com/sadopc/gottp/internal/protocol"
+	"github.com/sadopc/gottp/internal/protocol/graphql"
+	"github.com/sadopc/gottp/internal/scripting"
+	"github.com/sadopc/gottp/internal/ui/msgs"
+	"github.com/sadopc/gottp/internal/ui/panels/response"
 )
 
 func (a App) sendRequest() (tea.Model, tea.Cmd) {

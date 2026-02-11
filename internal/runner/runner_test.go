@@ -12,11 +12,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/serdar/gottp/internal/core/collection"
-	"github.com/serdar/gottp/internal/core/environment"
-	"github.com/serdar/gottp/internal/protocol"
-	httpclient "github.com/serdar/gottp/internal/protocol/http"
-	"github.com/serdar/gottp/internal/scripting"
+	"github.com/sadopc/gottp/internal/core/collection"
+	"github.com/sadopc/gottp/internal/core/environment"
+	"github.com/sadopc/gottp/internal/protocol"
+	httpclient "github.com/sadopc/gottp/internal/protocol/http"
+	"github.com/sadopc/gottp/internal/scripting"
 )
 
 func TestBuildProtocolRequest(t *testing.T) {

@@ -14,10 +14,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/serdar/gottp/internal/auth/awsv4"
-	"github.com/serdar/gottp/internal/auth/digest"
-	"github.com/serdar/gottp/internal/core/cookies"
-	"github.com/serdar/gottp/internal/protocol"
+	"github.com/sadopc/gottp/internal/auth/awsv4"
+	"github.com/sadopc/gottp/internal/auth/digest"
+	"github.com/sadopc/gottp/internal/core/cookies"
+	"github.com/sadopc/gottp/internal/protocol"
 	"golang.org/x/net/proxy"
 )
 

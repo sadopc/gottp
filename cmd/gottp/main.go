@@ -11,11 +11,11 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/serdar/gottp/internal/app"
-	"github.com/serdar/gottp/internal/config"
-	"github.com/serdar/gottp/internal/core/collection"
-	"github.com/serdar/gottp/internal/runner"
-	"github.com/serdar/gottp/pkg/version"
+	"github.com/sadopc/gottp/internal/app"
+	"github.com/sadopc/gottp/internal/config"
+	"github.com/sadopc/gottp/internal/core/collection"
+	"github.com/sadopc/gottp/internal/runner"
+	"github.com/sadopc/gottp/pkg/version"
 )
 
 func main() {

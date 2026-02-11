@@ -5,10 +5,10 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/serdar/gottp/internal/core/collection"
-	"github.com/serdar/gottp/internal/ui/components"
-	"github.com/serdar/gottp/internal/ui/msgs"
-	"github.com/serdar/gottp/internal/ui/panels/sidebar"
+	"github.com/sadopc/gottp/internal/core/collection"
+	"github.com/sadopc/gottp/internal/ui/components"
+	"github.com/sadopc/gottp/internal/ui/msgs"
+	"github.com/sadopc/gottp/internal/ui/panels/sidebar"
 )
 
 func (a *App) syncTabs() {

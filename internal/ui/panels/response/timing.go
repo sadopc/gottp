@@ -9,8 +9,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/serdar/gottp/internal/protocol"
-	"github.com/serdar/gottp/internal/ui/theme"
+	"github.com/sadopc/gottp/internal/protocol"
+	"github.com/sadopc/gottp/internal/ui/theme"
 )
 
 // TimingModel displays response timing and metadata.

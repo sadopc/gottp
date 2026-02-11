@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/serdar/gottp/internal/core/collection"
+	"github.com/sadopc/gottp/internal/core/collection"
 )
 
 func initCmd() {

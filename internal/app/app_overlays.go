@@ -9,16 +9,16 @@ import (
 	"github.com/atotto/clipboard"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/serdar/gottp/internal/core/collection"
-	importutil "github.com/serdar/gottp/internal/import"
-	"github.com/serdar/gottp/internal/import/insomnia"
-	"github.com/serdar/gottp/internal/import/openapi"
-	"github.com/serdar/gottp/internal/import/postman"
-	"github.com/serdar/gottp/internal/ui/components"
-	"github.com/serdar/gottp/internal/ui/msgs"
-	"github.com/serdar/gottp/internal/ui/panels/response"
-	"github.com/serdar/gottp/internal/ui/panels/sidebar"
-	"github.com/serdar/gottp/internal/ui/theme"
+	"github.com/sadopc/gottp/internal/core/collection"
+	importutil "github.com/sadopc/gottp/internal/import"
+	"github.com/sadopc/gottp/internal/import/insomnia"
+	"github.com/sadopc/gottp/internal/import/openapi"
+	"github.com/sadopc/gottp/internal/import/postman"
+	"github.com/sadopc/gottp/internal/ui/components"
+	"github.com/sadopc/gottp/internal/ui/msgs"
+	"github.com/sadopc/gottp/internal/ui/panels/response"
+	"github.com/sadopc/gottp/internal/ui/panels/sidebar"
+	"github.com/sadopc/gottp/internal/ui/theme"
 )
 
 func (a App) handleSwitchTheme(msg msgs.SwitchThemeMsg) (tea.Model, tea.Cmd) {

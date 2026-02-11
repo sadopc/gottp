@@ -8,9 +8,9 @@ import (
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/serdar/gottp/internal/diff"
-	"github.com/serdar/gottp/internal/protocol"
-	"github.com/serdar/gottp/internal/ui/theme"
+	"github.com/sadopc/gottp/internal/diff"
+	"github.com/sadopc/gottp/internal/protocol"
+	"github.com/sadopc/gottp/internal/ui/theme"
 )
 
 func newResponseModelForTest() Model {

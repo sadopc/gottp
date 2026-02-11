@@ -138,9 +138,9 @@ The HTTP client (`internal/protocol/http/client.go`) supports:
 
 ### CI/CD
 
-GitHub Actions in `.github/workflows/`:
-- `ci.yml` — test, lint, build on push/PR (ubuntu + macos, Go 1.25.x)
-- `release.yml` — GoReleaser on tag push (v*) for cross-platform binaries
+GitHub Actions are **disabled** (`.github/workflows/*.yml.disabled`). Tests and builds run locally. Releases are built manually via cross-compilation and uploaded with `gh release create`. The `.goreleaser.yml` config is kept for reference but not actively used.
+
+To re-enable Actions: rename `.yml.disabled` back to `.yml`.
 
 ## Conventions
 

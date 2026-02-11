@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/serdar/gottp/internal/protocol"
+	"github.com/sadopc/gottp/internal/protocol"
 )
 
 // newTestServer creates a simple echo server that reads the request body and

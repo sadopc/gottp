@@ -5,11 +5,11 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/serdar/gottp/internal/core/collection"
-	"github.com/serdar/gottp/internal/protocol"
-	"github.com/serdar/gottp/internal/ui/components"
-	"github.com/serdar/gottp/internal/ui/msgs"
-	"github.com/serdar/gottp/internal/ui/theme"
+	"github.com/sadopc/gottp/internal/core/collection"
+	"github.com/sadopc/gottp/internal/protocol"
+	"github.com/sadopc/gottp/internal/ui/components"
+	"github.com/sadopc/gottp/internal/ui/msgs"
+	"github.com/sadopc/gottp/internal/ui/theme"
 )
 
 // Model is the editor panel container with multi-protocol support.

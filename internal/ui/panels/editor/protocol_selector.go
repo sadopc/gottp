@@ -2,7 +2,7 @@ package editor
 
 import (
 	"github.com/charmbracelet/lipgloss"
-	"github.com/serdar/gottp/internal/ui/theme"
+	"github.com/sadopc/gottp/internal/ui/theme"
 )
 
 var protocols = []string{"HTTP", "GraphQL", "WebSocket", "gRPC"}

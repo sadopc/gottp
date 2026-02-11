@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/serdar/gottp/internal/protocol"
+	"github.com/sadopc/gottp/internal/protocol"
 )
 
 // Language represents a target programming language.

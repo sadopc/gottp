@@ -3,7 +3,7 @@ package config
 import (
 	"time"
 
-	gotls "github.com/serdar/gottp/internal/core/tls"
+	gotls "github.com/sadopc/gottp/internal/core/tls"
 )
 
 // Config holds the application configuration.
