@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/serdar/gottp/internal/auth/awsv4"
+	"github.com/serdar/gottp/internal/auth/digest"
 	"github.com/serdar/gottp/internal/core/cookies"
 	"github.com/serdar/gottp/internal/protocol"
 	"golang.org/x/net/proxy"
@@ -198,6 +199,65 @@ func (c *Client) Execute(ctx context.Context, req *protocol.Request) (*protocol.
 	transferDuration := time.Since(transferStart)
 	if err != nil {
 		return nil, fmt.Errorf("reading response: %w", err)
+	}
+
+	// Handle digest auth: if response is 401 with WWW-Authenticate: Digest and auth type is "digest", retry
+	if resp.StatusCode == http.StatusUnauthorized && req.Auth != nil && req.Auth.Type == "digest" {
+		wwwAuth := resp.Header.Get("WWW-Authenticate")
+		if strings.HasPrefix(wwwAuth, "Digest ") || strings.HasPrefix(wwwAuth, "digest ") {
+			ch, parseErr := digest.ParseChallenge(wwwAuth)
+			if parseErr == nil {
+				// Compute the request URI (path + query)
+				digestURI := u.RequestURI()
+
+				// Build the Authorization header
+				authHeader := digest.Authorize(
+					req.Auth.DigestUsername,
+					req.Auth.DigestPassword,
+					req.Method,
+					digestURI,
+					ch,
+				)
+
+				// Rebuild the request for retry
+				var retryBody io.Reader
+				if len(req.Body) > 0 {
+					retryBody = bytes.NewReader(req.Body)
+				}
+				retryReq, retryErr := http.NewRequestWithContext(ctx, req.Method, u.String(), retryBody)
+				if retryErr == nil {
+					// Copy original headers
+					for k, v := range req.Headers {
+						retryReq.Header.Set(k, v)
+					}
+					retryReq.Header.Set("Authorization", authHeader)
+
+					// Reset timing for the retry request
+					dnsStart, connStart, tlsStart, gotConn, gotFirstByte = time.Time{}, time.Time{}, time.Time{}, time.Time{}, time.Time{}
+					dnsDuration, connDuration, tlsDuration = 0, 0, 0
+
+					retryReq = retryReq.WithContext(httptrace.WithClientTrace(retryReq.Context(), trace))
+
+					retryStart := time.Now()
+					retryResp, retryDoErr := client.Do(retryReq)
+					retryDuration := time.Since(retryStart)
+					if retryDoErr == nil {
+						resp.Body.Close()
+						resp = retryResp
+						duration = retryDuration
+						start = retryStart
+
+						transferStart = time.Now()
+						respBody, err = io.ReadAll(resp.Body)
+						transferDuration = time.Since(transferStart)
+						if err != nil {
+							resp.Body.Close()
+							return nil, fmt.Errorf("reading digest retry response: %w", err)
+						}
+					}
+				}
+			}
+		}
 	}
 
 	// Build timing detail

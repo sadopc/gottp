@@ -403,11 +403,17 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		})
 		return a, nil
 
+	case msgs.GenerateCodeMsg:
+		return a.handleGenerateCode(msg)
+
 	case msgs.GRPCReflectMsg:
 		return a.handleGRPCReflect()
 
 	case msgs.GRPCReflectionResultMsg:
 		return a.handleGRPCReflectionResult(msg)
+
+	case msgs.InsertTemplateMsg:
+		return a.handleInsertTemplate(msg)
 	}
 
 	var cmd tea.Cmd

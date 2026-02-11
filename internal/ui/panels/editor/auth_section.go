@@ -11,7 +11,7 @@ import (
 	"github.com/serdar/gottp/internal/ui/theme"
 )
 
-var authTypes = []string{"none", "basic", "bearer", "apikey", "oauth2", "awsv4"}
+var authTypes = []string{"none", "basic", "bearer", "apikey", "oauth2", "awsv4", "digest"}
 
 // AuthSection manages auth configuration with type selector and field inputs.
 type AuthSection struct {
@@ -53,6 +53,10 @@ type AuthSection struct {
 	awsRegion       textinput.Model
 	awsService      textinput.Model
 
+	// Digest
+	digestUsername textinput.Model
+	digestPassword textinput.Model
+
 	width  int
 	styles theme.Styles
 }
@@ -90,6 +94,8 @@ func NewAuthSection(styles theme.Styles) AuthSection {
 		awsSessionToken:    mkInput("Session Token (optional)"),
 		awsRegion:          mkInput("Region (e.g. us-east-1)"),
 		awsService:         mkInput("Service (e.g. execute-api)"),
+		digestUsername:     mkInput("Username"),
+		digestPassword:     mkInput("Password"),
 		styles:             styles,
 	}
 }
@@ -118,6 +124,8 @@ func (m *AuthSection) SetSize(w int) {
 	m.awsSessionToken.Width = inputW
 	m.awsRegion.Width = inputW
 	m.awsService.Width = inputW
+	m.digestUsername.Width = inputW
+	m.digestPassword.Width = inputW
 }
 
 // Editing returns whether any field is being edited.
@@ -171,6 +179,12 @@ func (m AuthSection) BuildAuth() *protocol.AuthConfig {
 				Region:         m.awsRegion.Value(),
 				Service:        m.awsService.Value(),
 			},
+		}
+	case "digest":
+		return &protocol.AuthConfig{
+			Type:           "digest",
+			DigestUsername: m.digestUsername.Value(),
+			DigestPassword: m.digestPassword.Value(),
 		}
 	default:
 		return nil
@@ -238,6 +252,11 @@ func (m *AuthSection) LoadAuth(auth *collection.Auth) {
 			m.awsSessionToken.SetValue(auth.AWSAuth.SessionToken)
 			m.awsRegion.SetValue(auth.AWSAuth.Region)
 			m.awsService.SetValue(auth.AWSAuth.Service)
+		}
+	case "digest":
+		if auth.Digest != nil {
+			m.digestUsername.SetValue(auth.Digest.Username)
+			m.digestPassword.SetValue(auth.Digest.Password)
 		}
 	}
 }
@@ -326,6 +345,8 @@ func (m AuthSection) updateEditing(msg tea.Msg) (AuthSection, tea.Cmd) {
 		cmd = m.updateOAuth2Editing(msg)
 	case "awsv4":
 		cmd = m.updateAWSEditing(msg)
+	case "digest":
+		cmd = m.updateDigestEditing(msg)
 	}
 	return m, cmd
 }
@@ -368,6 +389,17 @@ func (m *AuthSection) updateAWSEditing(msg tea.Msg) tea.Cmd {
 	return cmd
 }
 
+func (m *AuthSection) updateDigestEditing(msg tea.Msg) tea.Cmd {
+	var cmd tea.Cmd
+	switch m.cursor {
+	case 1:
+		m.digestUsername, cmd = m.digestUsername.Update(msg)
+	case 2:
+		m.digestPassword, cmd = m.digestPassword.Update(msg)
+	}
+	return cmd
+}
+
 func (m *AuthSection) startEditing() {
 	m.editing = true
 	switch m.authType {
@@ -396,6 +428,8 @@ func (m *AuthSection) startEditing() {
 		m.startOAuth2Editing()
 	case "awsv4":
 		m.startAWSEditing()
+	case "digest":
+		m.startDigestEditing()
 	}
 }
 
@@ -445,6 +479,17 @@ func (m *AuthSection) startAWSEditing() {
 	}
 }
 
+func (m *AuthSection) startDigestEditing() {
+	switch m.cursor {
+	case 1:
+		m.digestUsername.Focus()
+		m.digestUsername.CursorEnd()
+	case 2:
+		m.digestPassword.Focus()
+		m.digestPassword.CursorEnd()
+	}
+}
+
 func (m *AuthSection) blurAll() {
 	m.username.Blur()
 	m.password.Blur()
@@ -463,6 +508,8 @@ func (m *AuthSection) blurAll() {
 	m.awsSessionToken.Blur()
 	m.awsRegion.Blur()
 	m.awsService.Blur()
+	m.digestUsername.Blur()
+	m.digestPassword.Blur()
 }
 
 func (m AuthSection) isToggleField() bool {
@@ -527,6 +574,8 @@ func (m AuthSection) maxCursor() int {
 		return 9 // type, grant_type, auth_url, token_url, client_id, client_secret, scope, username, password, pkce
 	case "awsv4":
 		return 5 // type, access_key, secret_key, session_token, region, service
+	case "digest":
+		return 2 // type, username, password
 	default:
 		return 0 // none: just type
 	}
@@ -630,6 +679,11 @@ func (m AuthSection) View() string {
 		lines = append(lines, m.renderField("Session", m.awsSessionToken, 3))
 		lines = append(lines, m.renderField("Region", m.awsRegion, 4))
 		lines = append(lines, m.renderField("Service", m.awsService, 5))
+
+	case "digest":
+		lines = append(lines, "")
+		lines = append(lines, m.renderField("Username", m.digestUsername, 1))
+		lines = append(lines, m.renderField("Password", m.digestPassword, 2))
 	}
 
 	return strings.Join(lines, "\n")

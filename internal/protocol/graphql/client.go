@@ -12,8 +12,11 @@ import (
 	"github.com/serdar/gottp/internal/protocol"
 )
 
-// Client implements the GraphQL protocol via HTTP POST.
-type Client struct{}
+// Client implements the GraphQL protocol via HTTP POST. It also supports
+// GraphQL subscriptions over WebSocket using the graphql-ws protocol.
+type Client struct {
+	subscription *SubscriptionClient
+}
 
 // New creates a new GraphQL client.
 func New() *Client {
@@ -35,6 +38,20 @@ func (c *Client) Validate(req *protocol.Request) error {
 func (c *Client) Execute(ctx context.Context, req *protocol.Request) (*protocol.Response, error) {
 	if err := c.Validate(req); err != nil {
 		return nil, err
+	}
+
+	// Detect subscription queries and return a hint response — the caller
+	// (TUI or runner) should use ConnectSubscription / Subscribe for the
+	// actual streaming flow.
+	if isSubscription(req.GraphQLQuery) {
+		return &protocol.Response{
+			StatusCode:  101,
+			Status:      "101 Subscription Detected",
+			Headers:     http.Header{},
+			Body:        []byte("GraphQL subscription detected. Use ConnectSubscription/Subscribe for streaming."),
+			ContentType: "text/plain",
+			Proto:       "graphql-ws",
+		}, nil
 	}
 
 	// Build GraphQL request body
@@ -103,6 +120,54 @@ func (c *Client) Execute(ctx context.Context, req *protocol.Request) (*protocol.
 		Proto:       resp.Proto,
 		TLS:         resp.TLS != nil,
 	}, nil
+}
+
+// ConnectSubscription establishes a WebSocket connection for GraphQL
+// subscriptions using the graphql-ws protocol. Headers from the request are
+// forwarded to the WebSocket handshake.
+func (c *Client) ConnectSubscription(ctx context.Context, url string, headers map[string]string) error {
+	if c.subscription != nil && c.subscription.IsConnected() {
+		return fmt.Errorf("subscription already connected")
+	}
+	c.subscription = NewSubscriptionClient()
+	return c.subscription.Connect(ctx, url, headers)
+}
+
+// Subscribe starts a GraphQL subscription and sends events to msgChan. The
+// connection must have been established via ConnectSubscription first. This
+// method blocks and should be called as a goroutine.
+func (c *Client) Subscribe(ctx context.Context, query string, variables string, msgChan chan<- protocol.StreamMessage) error {
+	if c.subscription == nil {
+		return fmt.Errorf("subscription not connected")
+	}
+	return c.subscription.Subscribe(ctx, query, variables, msgChan)
+}
+
+// CloseSubscription closes the active subscription and its WebSocket
+// connection.
+func (c *Client) CloseSubscription() error {
+	if c.subscription == nil {
+		return nil
+	}
+	err := c.subscription.Close()
+	c.subscription = nil
+	return err
+}
+
+// IsSubscriptionConnected returns whether the subscription client holds an
+// open connection.
+func (c *Client) IsSubscriptionConnected() bool {
+	if c.subscription == nil {
+		return false
+	}
+	return c.subscription.IsConnected()
+}
+
+// IsSubscriptionQuery returns true if the given query is a GraphQL
+// subscription operation. This is a convenience wrapper for the package-level
+// isSubscription function.
+func (c *Client) IsSubscriptionQuery(query string) bool {
+	return isSubscription(query)
 }
 
 func applyAuth(req *http.Request, auth *protocol.AuthConfig) {

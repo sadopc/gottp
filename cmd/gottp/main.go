@@ -19,11 +19,68 @@ import (
 )
 
 func main() {
-	if len(os.Args) > 1 && os.Args[1] == "run" {
-		runCmd()
-		return
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "run":
+			runCmd()
+			return
+		case "init":
+			initCmd()
+			return
+		case "validate":
+			validateCmd()
+			return
+		case "fmt":
+			fmtCmd()
+			return
+		case "import":
+			importCmd()
+			return
+		case "export":
+			exportCmd()
+			return
+		case "mock":
+			mockCmd()
+			return
+		case "completion":
+			completionCmd()
+			return
+		case "version":
+			fmt.Printf("gottp %s (%s) built %s\n", version.Version, version.Commit, version.Date)
+			return
+		case "help":
+			printHelp()
+			return
+		}
 	}
 	tuiCmd()
+}
+
+func printHelp() {
+	fmt.Fprintf(os.Stderr, `gottp - A TUI API client for the terminal
+
+Usage:
+  gottp [flags]                    Launch TUI (interactive mode)
+  gottp <command> [args] [flags]   Run a subcommand
+
+Commands:
+  run       Run API requests headlessly from a collection file
+  init      Create a new .gottp.yaml collection interactively
+  validate  Validate collection and environment YAML files
+  fmt       Format and normalize collection YAML files
+  import    Import collection from cURL/Postman/Insomnia/OpenAPI/HAR
+  export    Export collection to cURL/HAR format
+  mock      Start a mock HTTP server from a collection file
+  completion  Generate shell completion scripts (bash, zsh, fish)
+  version   Print version information
+  help      Show this help message
+
+TUI Flags:
+  --collection <path>  Path to a .gottp.yaml collection file
+  --version            Print version and exit
+
+Run 'gottp <command> --help' for more information about a command.
+`)
 }
 
 func runCmd() {
@@ -31,9 +88,13 @@ func runCmd() {
 	envFlag := fs.String("env", "", "Environment name to use")
 	requestFlag := fs.String("request", "", "Run a single request by name")
 	folderFlag := fs.String("folder", "", "Run all requests in a folder")
+	workflowFlag := fs.String("workflow", "", "Run a named workflow")
 	outputFlag := fs.String("output", "text", "Output format: text, json, junit")
 	verboseFlag := fs.Bool("verbose", false, "Show response bodies and headers")
 	timeoutFlag := fs.Duration("timeout", 30*time.Second, "Request timeout")
+	perfSaveFlag := fs.String("perf-save", "", "Save timing results as a performance baseline file")
+	perfBaselineFlag := fs.String("perf-baseline", "", "Compare timings against a baseline file")
+	perfThresholdFlag := fs.Float64("perf-threshold", 20.0, "Regression threshold percentage (default 20%)")
 
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: gottp run <collection.gottp.yaml> [flags]\n\n")
@@ -45,6 +106,7 @@ func runCmd() {
 		fmt.Fprintf(os.Stderr, "  gottp run api.gottp.yaml --env Production\n")
 		fmt.Fprintf(os.Stderr, "  gottp run api.gottp.yaml --request \"Get Users\"\n")
 		fmt.Fprintf(os.Stderr, "  gottp run api.gottp.yaml --folder Auth --output json\n")
+		fmt.Fprintf(os.Stderr, "  gottp run api.gottp.yaml --workflow \"Create and Verify\" --verbose\n")
 		fmt.Fprintf(os.Stderr, "  gottp run api.gottp.yaml --output junit > results.xml\n")
 		fmt.Fprintf(os.Stderr, "\nExit codes:\n")
 		fmt.Fprintf(os.Stderr, "  0  All requests succeeded, all tests passed\n")
@@ -78,6 +140,7 @@ func runCmd() {
 		Environment:    *envFlag,
 		RequestName:    *requestFlag,
 		FolderName:     *folderFlag,
+		WorkflowName:   *workflowFlag,
 		OutputFormat:   *outputFlag,
 		Verbose:        *verboseFlag,
 		Timeout:        *timeoutFlag,
@@ -91,6 +154,35 @@ func runCmd() {
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
+
+	// Workflow mode
+	if cfg.WorkflowName != "" {
+		wfResult, err := r.RunWorkflow(ctx, cfg.WorkflowName, cfg.Verbose)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(2)
+		}
+
+		switch cfg.OutputFormat {
+		case "json":
+			if err := runner.PrintWorkflowJSON(os.Stdout, wfResult); err != nil {
+				fmt.Fprintf(os.Stderr, "Error writing JSON: %v\n", err)
+				os.Exit(2)
+			}
+		case "junit":
+			if err := runner.PrintWorkflowJUnit(os.Stdout, wfResult); err != nil {
+				fmt.Fprintf(os.Stderr, "Error writing JUnit XML: %v\n", err)
+				os.Exit(2)
+			}
+		default:
+			runner.PrintWorkflowText(os.Stdout, wfResult, cfg.Verbose)
+		}
+
+		if !wfResult.Success {
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
 
 	results, err := r.Run(ctx, cfg)
 	if err != nil {
@@ -111,6 +203,30 @@ func runCmd() {
 		}
 	default:
 		runner.PrintText(os.Stdout, results, cfg.Verbose)
+	}
+
+	// Performance baseline: save
+	if *perfSaveFlag != "" {
+		if err := runner.SavePerfBaseline(*perfSaveFlag, results); err != nil {
+			fmt.Fprintf(os.Stderr, "Error saving perf baseline: %v\n", err)
+			os.Exit(2)
+		}
+		fmt.Fprintf(os.Stderr, "Performance baseline saved to %s\n", *perfSaveFlag)
+	}
+
+	// Performance baseline: compare
+	if *perfBaselineFlag != "" {
+		baseline, err := runner.LoadPerfBaseline(*perfBaselineFlag)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error loading perf baseline: %v\n", err)
+			os.Exit(2)
+		}
+		comparisons := runner.ComparePerfBaseline(results, baseline, *perfThresholdFlag)
+		fmt.Fprintln(os.Stdout)
+		runner.PrintPerfComparison(os.Stdout, comparisons, *perfThresholdFlag)
+		if runner.HasRegressions(comparisons) {
+			os.Exit(1)
+		}
 	}
 
 	os.Exit(runner.ExitCode(results))

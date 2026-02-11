@@ -30,6 +30,26 @@ jobs:
       - name: Run tests with race detector
         run: go test -race ./...
 
+      - name: Run tests with coverage
+        run: go test -coverprofile=coverage.out -covermode=atomic ./...
+
+      - name: Check coverage threshold
+        run: |
+          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+          echo "Total coverage: ${COVERAGE}%"
+          # Fail if coverage drops below 30% (increase as coverage improves)
+          if (( $(echo "$COVERAGE < 30" | bc -l) )); then
+            echo "Coverage ${COVERAGE}% is below threshold of 30%"
+            exit 1
+          fi
+
+      - name: Upload coverage
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.out
+
   lint:
     name: Lint
     runs-on: ubuntu-latest
@@ -44,6 +64,50 @@ jobs:
       - uses: golangci/golangci-lint-action@v6
         with:
           version: latest
+
+  security:
+    name: Security
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.x"
+          cache: true
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      - name: Run vulnerability check
+        run: govulncheck ./...
+
+  fuzz:
+    name: Fuzz Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.x"
+          cache: true
+
+      - name: Fuzz import parsers (30s each)
+        run: |
+          for pkg in curl postman insomnia openapi har; do
+            echo "Fuzzing $pkg parser..."
+            dir="./internal/import/$pkg/"
+            if ls ${dir}fuzz_test.go 1>/dev/null 2>&1; then
+              go test -fuzz=Fuzz -fuzztime=30s ${dir} || true
+            fi
+          done
+
+      - name: Fuzz format detector
+        run: |
+          if ls ./internal/import/fuzz_test.go 1>/dev/null 2>&1; then
+            go test -fuzz=Fuzz -fuzztime=30s ./internal/import/ || true
+          fi
 
   build:
     name: Build (${{ matrix.goos }}/${{ matrix.goarch }})

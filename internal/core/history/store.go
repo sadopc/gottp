@@ -100,6 +100,85 @@ func (s *Store) Search(query string) ([]Entry, error) {
 	return scanEntries(rows)
 }
 
+// Filter defines criteria for filtering history entries.
+type Filter struct {
+	Method     string // filter by HTTP method (e.g. "GET")
+	StatusCode int    // filter by exact status code
+	StatusMin  int    // filter by minimum status code (inclusive)
+	StatusMax  int    // filter by maximum status code (inclusive)
+	URLPattern string // filter by URL substring
+	Since      time.Time
+	Until      time.Time
+	Limit      int
+	Offset     int
+}
+
+// ListFiltered returns history entries matching the filter criteria.
+func (s *Store) ListFiltered(f Filter) ([]Entry, error) {
+	query := `SELECT id, method, url, status_code, duration_ns, size, request_body, response_body, headers, timestamp
+		FROM history WHERE 1=1`
+	var args []interface{}
+
+	if f.Method != "" {
+		query += " AND method = ?"
+		args = append(args, f.Method)
+	}
+	if f.StatusCode > 0 {
+		query += " AND status_code = ?"
+		args = append(args, f.StatusCode)
+	}
+	if f.StatusMin > 0 {
+		query += " AND status_code >= ?"
+		args = append(args, f.StatusMin)
+	}
+	if f.StatusMax > 0 {
+		query += " AND status_code <= ?"
+		args = append(args, f.StatusMax)
+	}
+	if f.URLPattern != "" {
+		query += " AND url LIKE ?"
+		args = append(args, "%"+f.URLPattern+"%")
+	}
+	if !f.Since.IsZero() {
+		query += " AND timestamp >= ?"
+		args = append(args, f.Since.UTC().Format(time.RFC3339Nano))
+	}
+	if !f.Until.IsZero() {
+		query += " AND timestamp <= ?"
+		args = append(args, f.Until.UTC().Format(time.RFC3339Nano))
+	}
+
+	query += " ORDER BY timestamp DESC"
+
+	limit := f.Limit
+	if limit <= 0 {
+		limit = 50
+	}
+	query += " LIMIT ? OFFSET ?"
+	args = append(args, limit, f.Offset)
+
+	rows, err := s.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("listing filtered history: %w", err)
+	}
+	defer rows.Close()
+
+	return scanEntries(rows)
+}
+
+// Count returns the total number of history entries.
+func (s *Store) Count() (int, error) {
+	var count int
+	err := s.db.QueryRow("SELECT COUNT(*) FROM history").Scan(&count)
+	return count, err
+}
+
+// Delete removes a specific history entry by ID.
+func (s *Store) Delete(id int64) error {
+	_, err := s.db.Exec("DELETE FROM history WHERE id = ?", id)
+	return err
+}
+
 // Clear removes all history entries.
 func (s *Store) Clear() error {
 	_, err := s.db.Exec("DELETE FROM history")

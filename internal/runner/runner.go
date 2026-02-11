@@ -34,6 +34,7 @@ type Config struct {
 	Environment    string
 	RequestName    string // run single request by name
 	FolderName     string // run all requests in folder
+	WorkflowName   string // run a named workflow
 	OutputFormat   string // "text", "json", "junit"
 	Verbose        bool
 	Timeout        time.Duration
@@ -432,6 +433,11 @@ func buildAuthConfig(auth *collection.Auth) *protocol.AuthConfig {
 				Region:         auth.AWSAuth.Region,
 				Service:        auth.AWSAuth.Service,
 			}
+		}
+	case "digest":
+		if auth.Digest != nil {
+			cfg.DigestUsername = auth.Digest.Username
+			cfg.DigestPassword = auth.Digest.Password
 		}
 	}
 	return cfg

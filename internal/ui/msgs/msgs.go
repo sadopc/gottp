@@ -283,6 +283,13 @@ type GRPCMethodInfo struct {
 	IsServerStream bool
 }
 
+// --- Code Generation ---
+
+// GenerateCodeMsg triggers code generation for the current request.
+type GenerateCodeMsg struct {
+	Language string // go, python, javascript, curl, ruby, java, rust, php
+}
+
 // --- Phase 7: Scripting ---
 
 // ScriptResultMsg carries script execution results.
@@ -298,4 +305,9 @@ type ScriptTestResult struct {
 	Name   string
 	Passed bool
 	Error  string
+}
+
+// InsertTemplateMsg inserts a request template into a new tab.
+type InsertTemplateMsg struct {
+	TemplateName string
 }

@@ -228,6 +228,180 @@ func truncate(s string, max int) string {
 	return s[:max-3] + "..."
 }
 
+// PrintWorkflowText outputs workflow results in human-readable format.
+func PrintWorkflowText(w io.Writer, wf *WorkflowResult, verbose bool) {
+	fmt.Fprintf(w, "Workflow: %s\n", wf.Name)
+	fmt.Fprintln(w, strings.Repeat("-", 60))
+
+	for i, step := range wf.Steps {
+		icon := "\u2713"
+		if step.Error != nil || !step.TestsPassed {
+			icon = "\u2717"
+		}
+
+		sizeStr := formatSize(step.Size)
+		durationStr := formatDuration(step.Duration)
+
+		if step.Error != nil {
+			fmt.Fprintf(w, "%s Step %d: %-20s %-6s  %-10s %s\n",
+				icon, i+1, truncate(step.Name, 20), step.Method,
+				durationStr, sizeStr)
+			fmt.Fprintf(w, "  \u2514 Error: %s\n", step.Error)
+		} else {
+			statusStr := fmt.Sprintf("%d %s", step.StatusCode, statusText(step.StatusCode))
+			fmt.Fprintf(w, "%s Step %d: %-20s %-6s  %s  %s  %s\n",
+				icon, i+1, truncate(step.Name, 20), step.Method,
+				statusStr, durationStr, sizeStr)
+		}
+
+		for _, tr := range step.TestResults {
+			if tr.Passed {
+				fmt.Fprintf(w, "  \u2713 %s\n", tr.Name)
+			} else {
+				fmt.Fprintf(w, "  \u2717 %s: %s\n", tr.Name, tr.Error)
+			}
+		}
+
+		if verbose && len(step.ScriptLogs) > 0 {
+			for _, log := range step.ScriptLogs {
+				fmt.Fprintf(w, "  [log] %s\n", log)
+			}
+		}
+	}
+
+	fmt.Fprintln(w)
+	if wf.Success {
+		fmt.Fprintf(w, "\u2713 Workflow passed (%d steps)\n", len(wf.Steps))
+	} else {
+		fmt.Fprintf(w, "\u2717 Workflow failed: %s\n", wf.Error)
+	}
+}
+
+// PrintWorkflowJSON outputs workflow results as JSON.
+func PrintWorkflowJSON(w io.Writer, wf *WorkflowResult) error {
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	return enc.Encode(wf)
+}
+
+// PrintWorkflowJUnit outputs workflow results as JUnit XML.
+func PrintWorkflowJUnit(w io.Writer, wf *WorkflowResult) error {
+	suites := junitTestSuites{}
+
+	var totalTime float64
+	for _, step := range wf.Steps {
+		totalTime += step.Duration.Seconds()
+	}
+
+	suite := junitTestSuite{
+		Name:  "Workflow: " + wf.Name,
+		Tests: len(wf.Steps),
+		Time:  totalTime,
+	}
+
+	for i, step := range wf.Steps {
+		tc := junitTestCase{
+			Name:      fmt.Sprintf("Step %d: %s", i+1, step.Name),
+			ClassName: wf.Name,
+			Time:      step.Duration.Seconds(),
+		}
+
+		if step.Error != nil {
+			suite.Errors++
+			tc.Error = &junitError{
+				Message: step.Error.Error(),
+				Type:    "RequestError",
+				Content: step.Error.Error(),
+			}
+		} else if !step.TestsPassed {
+			suite.Failures++
+			var failMsgs []string
+			for _, tr := range step.TestResults {
+				if !tr.Passed {
+					failMsgs = append(failMsgs, tr.Name+": "+tr.Error)
+				}
+			}
+			tc.Failure = &junitFailure{
+				Message: strings.Join(failMsgs, "; "),
+				Type:    "AssertionFailure",
+				Content: strings.Join(failMsgs, "\n"),
+			}
+		}
+
+		suite.Cases = append(suite.Cases, tc)
+	}
+
+	if !wf.Success && len(wf.Steps) == 0 {
+		suite.Tests = 1
+		suite.Errors = 1
+		suite.Cases = append(suite.Cases, junitTestCase{
+			Name:      wf.Name,
+			ClassName: "Workflow",
+			Error: &junitError{
+				Message: wf.Error,
+				Type:    "WorkflowError",
+				Content: wf.Error,
+			},
+		})
+	}
+
+	suites.Suites = append(suites.Suites, suite)
+
+	fmt.Fprint(w, xml.Header)
+	enc := xml.NewEncoder(w)
+	enc.Indent("", "  ")
+	if err := enc.Encode(suites); err != nil {
+		return err
+	}
+	fmt.Fprintln(w)
+	return nil
+}
+
+// PrintPerfComparison outputs performance comparison results.
+func PrintPerfComparison(w io.Writer, comparisons []PerfComparison, threshold float64) {
+	fmt.Fprintf(w, "Performance Comparison (threshold: %.0f%%)\n", threshold)
+	fmt.Fprintln(w, strings.Repeat("-", 70))
+
+	regressions := 0
+	improvements := 0
+
+	for _, c := range comparisons {
+		if c.IsNew {
+			fmt.Fprintf(w, "  [new] %-25s %s\n",
+				truncate(c.Name, 25), formatDuration(c.Current))
+			continue
+		}
+
+		var icon, label string
+		if c.Regressed {
+			icon = "\u2717"
+			label = fmt.Sprintf("+%.1f%%", c.DeltaPercent)
+			regressions++
+		} else if c.DeltaPercent < -5 {
+			icon = "\u2193"
+			label = fmt.Sprintf("%.1f%%", c.DeltaPercent)
+			improvements++
+		} else {
+			icon = "\u2713"
+			label = fmt.Sprintf("%+.1f%%", c.DeltaPercent)
+		}
+
+		fmt.Fprintf(w, "  %s %-25s %s -> %s  (%s)\n",
+			icon, truncate(c.Name, 25),
+			formatDuration(c.Baseline), formatDuration(c.Current), label)
+	}
+
+	fmt.Fprintln(w)
+	if regressions > 0 {
+		fmt.Fprintf(w, "\u2717 %d regression(s) detected (>%.0f%% slower)\n", regressions, threshold)
+	} else {
+		fmt.Fprintf(w, "\u2713 No performance regressions detected\n")
+	}
+	if improvements > 0 {
+		fmt.Fprintf(w, "\u2193 %d improvement(s)\n", improvements)
+	}
+}
+
 func statusText(code int) string {
 	switch code {
 	case 200:

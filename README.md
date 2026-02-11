@@ -9,15 +9,15 @@ A Postman/Insomnia-like TUI API client built in Go.
 
 ### Multi-Protocol Support
 - **HTTP** — GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS
-- **GraphQL** — query editor, variables, schema introspection (Ctrl+I)
+- **GraphQL** — query editor, variables, schema introspection (Ctrl+I), subscriptions (WebSocket transport)
 - **WebSocket** — connect, send/receive messages, real-time message log
-- **gRPC** — server reflection, service browser, dynamic unary calls
+- **gRPC** — server reflection, service browser, unary + streaming (server/client/bidi) calls
 
 ### Request Editor
 - **Three-panel layout** — sidebar (collections + history), request editor, response viewer
 - **Protocol switching** — Ctrl+P to cycle between HTTP, GraphQL, WebSocket, gRPC
 - **Key-value editors** for headers and query params with enable/disable toggles
-- **Auth support** — Basic, Bearer, API Key, OAuth2 (auth code w/ PKCE, client credentials, password grant), AWS Signature v4
+- **Auth support** — Basic, Bearer, API Key, OAuth2 (auth code w/ PKCE, client credentials, password grant), AWS Signature v4, Digest (MD5/SHA-256)
 - **Pre/post-request scripting** — JavaScript (ES5.1+) with `gottp` API for assertions, env var mutation, logging
 - **$EDITOR integration** — press `E` to edit request body in your preferred editor
 
@@ -26,17 +26,21 @@ A Postman/Insomnia-like TUI API client built in Go.
 - **Response body search** — `/` or `Ctrl+F` to search, `n`/`N` to navigate matches
 - **Response cookies tab** — parsed `Set-Cookie` headers
 - **Performance waterfall** — DNS, TCP, TLS, TTFB, and transfer timing breakdown
-- **Response diffing** — set a baseline, compare subsequent responses with Myers diff
+- **Response diffing** — set a baseline, compare subsequent responses with Myers diff (line + word-level highlighting)
 - **Script console** — view pre/post-script logs and test results
 - **WebSocket message log** — color-coded sent/received messages
 
 ### Collections & Import/Export
 - **Collections** saved as readable `.gottp.yaml` files
-- **Environment variables** with `{{variable}}` interpolation and environment switching (Ctrl+E)
-- **Request history** — SQLite-backed, searchable, displayed in sidebar
+- **Environment variables** with `{{variable}}` interpolation, environment switching (Ctrl+E), and encrypted secrets (AES-256-GCM)
+- **Request history** — SQLite-backed, searchable, displayed in sidebar with advanced filtering
 - **cURL import/export** — copy requests as curl, import from clipboard
 - **HAR import/export** — import from browser DevTools, export request/response pairs
 - **Import from Postman** (v2.1), **Insomnia** (v4), **OpenAPI** (3.0)
+- **Export to Postman/Insomnia** — round-trip export for team collaboration
+- **Code generation** — generate code snippets in Go, Python, JavaScript, cURL, Ruby, Java, Rust, PHP
+- **Request templates** — pre-built templates for REST, GraphQL, Auth, and WebSocket patterns
+- **Request chaining** — define workflows with variable extraction between requests
 
 ### Networking
 - **Proxy support** — HTTP, HTTPS, and SOCKS5 proxies (global or per-request)
@@ -53,7 +57,13 @@ A Postman/Insomnia-like TUI API client built in Go.
 
 ### CLI Mode (Headless)
 - **`gottp run`** — run requests from the terminal without the TUI
+- **`gottp mock`** — serve mock responses from a collection file with latency/error simulation
+- **`gottp init/validate/fmt`** — scaffold, validate, and format collection files
+- **`gottp import/export`** — CLI import/export (cURL, Postman, Insomnia, OpenAPI, HAR)
+- **`gottp completion`** — shell completion scripts for bash, zsh, fish
 - **CI/CD integration** — JSON and JUnit XML output formats
+- **Performance baselines** — save/compare request timings with `--perf-save` / `--perf-baseline`
+- **Workflow execution** — run chained request workflows with `--workflow`
 - **Scripting in CI** — pre/post-request scripts execute in CLI mode too
 - **Exit codes** — 0 = all pass, 1 = test assertion failure, 2 = request error
 
@@ -107,6 +117,9 @@ gottp run api.gottp.yaml --folder "Auth"
 # Use a specific environment
 gottp run api.gottp.yaml --env Production
 
+# Run a chained workflow
+gottp run api.gottp.yaml --workflow "Create and Verify"
+
 # JSON output for scripting
 gottp run api.gottp.yaml --output json
 
@@ -115,6 +128,38 @@ gottp run api.gottp.yaml --output junit > results.xml
 
 # Verbose output with response bodies
 gottp run api.gottp.yaml --verbose
+
+# Save/compare performance baselines
+gottp run api.gottp.yaml --perf-save baseline.json
+gottp run api.gottp.yaml --perf-baseline baseline.json --perf-threshold 20
+```
+
+### Other CLI Commands
+
+```bash
+# Create a new collection interactively
+gottp init
+
+# Validate collection/environment YAML
+gottp validate api.gottp.yaml
+
+# Format and normalize collection YAML
+gottp fmt api.gottp.yaml
+
+# Import from file (auto-detects format)
+gottp import collection.postman.json
+
+# Export to cURL or HAR
+gottp export api.gottp.yaml --format curl
+gottp export api.gottp.yaml --format har
+
+# Start a mock server from a collection
+gottp mock api.gottp.yaml --port 8080 --latency 100ms --error-rate 5
+
+# Generate shell completions
+gottp completion bash > /etc/bash_completion.d/gottp
+gottp completion zsh > ~/.zsh/completions/_gottp
+gottp completion fish > ~/.config/fish/completions/gottp.fish
 ```
 
 ### Key Bindings
@@ -266,7 +311,26 @@ gottp.test("Response has data", function() {
 gottp.setEnvVar("token", JSON.parse(gottp.response.body).token);
 ```
 
-Available scripting API: `gottp.setEnvVar()`, `gottp.getEnvVar()`, `gottp.log()`, `gottp.test()`, `gottp.assert()`, `gottp.base64encode()`, `gottp.base64decode()`, `gottp.sha256()`, `gottp.uuid()`.
+Available scripting API:
+
+| Function | Description |
+|----------|-------------|
+| `gottp.setEnvVar(key, value)` | Set an environment variable |
+| `gottp.getEnvVar(key)` | Get an environment variable |
+| `gottp.log(...)` | Log a message to the console |
+| `gottp.test(name, fn)` | Define a test assertion |
+| `gottp.assert(condition, msg)` | Assert a condition |
+| `gottp.base64encode(str)` | Base64 encode a string |
+| `gottp.base64decode(str)` | Base64 decode a string |
+| `gottp.sha256(str)` | SHA-256 hash |
+| `gottp.md5(str)` | MD5 hash |
+| `gottp.hmacSha256(msg, key)` | HMAC-SHA256 |
+| `gottp.uuid()` | Generate a UUID v4 |
+| `gottp.timestamp()` | Unix timestamp (seconds) |
+| `gottp.timestampMs()` | Unix timestamp (milliseconds) |
+| `gottp.randomInt(min, max)` | Random integer in range |
+| `gottp.sleep(ms)` | Sleep for milliseconds (max 10s) |
+| `gottp.readFile(path)` | Read a file from disk |
 
 ## Themes
 
@@ -282,23 +346,23 @@ Custom themes can be added as YAML files in `~/.config/gottp/themes/`.
 
 ## Roadmap
 
+### Core Features
 - [x] Environment system with variable interpolation
 - [x] Request history (SQLite-backed)
-- [x] Auth UI (Basic, Bearer, API Key)
+- [x] Auth UI (Basic, Bearer, API Key, OAuth2, AWS Sig v4, Digest)
 - [x] cURL import/export
 - [x] Response body search
 - [x] Response cookies tab
 - [x] Jump mode navigation
 - [x] $EDITOR integration
 - [x] Custom themes (8 built-in + custom YAML)
-- [x] OAuth2 auth (auth code w/ PKCE, client credentials, password grant)
-- [x] AWS Signature v4 auth
 - [x] Import from Postman, Insomnia, OpenAPI
-- [x] Response diffing
-- [x] GraphQL support (query editor, introspection)
+- [x] Export to Postman, Insomnia
+- [x] Response diffing (line + word-level)
+- [x] GraphQL support (query editor, introspection, subscriptions)
 - [x] WebSocket support (connect/send/receive, message log)
-- [x] gRPC support (server reflection, dynamic unary calls)
-- [x] Pre/post-request scripting (JavaScript)
+- [x] gRPC support (server reflection, unary + streaming)
+- [x] Pre/post-request scripting (JavaScript ES5.1+)
 - [x] CLI mode (`gottp run` for headless/CI execution)
 - [x] HAR import/export
 - [x] Performance waterfall (DNS/TCP/TLS/TTFB/Transfer timing)
@@ -306,9 +370,20 @@ Custom themes can be added as YAML files in `~/.config/gottp/themes/`.
 - [x] Cookie jar (automatic cookie handling)
 - [x] Certificate management (mTLS)
 - [x] CI/CD pipeline (GitHub Actions + GoReleaser)
-- [ ] Streaming gRPC (server/client/bidi)
-- [ ] GraphQL subscriptions
-- [ ] Request chaining / workflows
+- [x] Request chaining / workflows
+- [x] Code generation (Go, Python, JS, cURL, Ruby, Java, Rust, PHP)
+- [x] Request templates (REST, GraphQL, Auth, WebSocket)
+- [x] Mock server (`gottp mock`)
+- [x] CLI subcommands (init, validate, fmt, import, export)
+- [x] Shell completions (bash, zsh, fish)
+- [x] Performance baseline comparison (`--perf-save` / `--perf-baseline`)
+- [x] Environment encryption (AES-256-GCM)
+
+### Future
+- [ ] Plugin system (protocol + auth extensibility)
+- [ ] Documentation site
+- [ ] Cookie editor UI
+- [ ] Additional package manager distribution (AUR, Scoop, Nix)
 
 ## License
 

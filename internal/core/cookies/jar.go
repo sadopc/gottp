@@ -1,10 +1,13 @@
 package cookies
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
+	"os"
 	"sync"
+	"time"
 )
 
 // Jar wraps http.CookieJar with thread-safe access and manual management.
@@ -64,6 +67,90 @@ func (j *Jar) Clear() {
 	newJar, _ := cookiejar.New(nil)
 	j.jar = newJar
 	j.urls = make(map[string]*url.URL)
+}
+
+// persistedCookie is a JSON-serializable cookie format.
+type persistedCookie struct {
+	Name     string    `json:"name"`
+	Value    string    `json:"value"`
+	Domain   string    `json:"domain"`
+	Path     string    `json:"path"`
+	Expires  time.Time `json:"expires,omitempty"`
+	Secure   bool      `json:"secure,omitempty"`
+	HTTPOnly bool      `json:"http_only,omitempty"`
+	SameSite string    `json:"same_site,omitempty"`
+}
+
+type persistedJar struct {
+	Cookies map[string][]persistedCookie `json:"cookies"`
+}
+
+// SaveToFile persists all cookies to a JSON file.
+func (j *Jar) SaveToFile(path string) error {
+	j.mu.RLock()
+	defer j.mu.RUnlock()
+
+	data := persistedJar{Cookies: make(map[string][]persistedCookie)}
+	for host, u := range j.urls {
+		cookies := j.jar.Cookies(u)
+		for _, c := range cookies {
+			data.Cookies[host] = append(data.Cookies[host], persistedCookie{
+				Name:     c.Name,
+				Value:    c.Value,
+				Domain:   c.Domain,
+				Path:     c.Path,
+				Expires:  c.Expires,
+				Secure:   c.Secure,
+				HTTPOnly: c.HttpOnly,
+			})
+		}
+	}
+
+	b, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, b, 0600)
+}
+
+// LoadFromFile loads cookies from a JSON file.
+func (j *Jar) LoadFromFile(path string) error {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil // no cookie file yet
+		}
+		return err
+	}
+
+	var data persistedJar
+	if err := json.Unmarshal(b, &data); err != nil {
+		return err
+	}
+
+	j.mu.Lock()
+	defer j.mu.Unlock()
+
+	for host, cookies := range data.Cookies {
+		u := &url.URL{Scheme: "https", Host: host}
+		j.urls[host] = u
+		var httpCookies []*http.Cookie
+		for _, c := range cookies {
+			httpCookies = append(httpCookies, &http.Cookie{
+				Name:     c.Name,
+				Value:    c.Value,
+				Domain:   c.Domain,
+				Path:     c.Path,
+				Expires:  c.Expires,
+				Secure:   c.Secure,
+				HttpOnly: c.HTTPOnly,
+			})
+		}
+		if len(httpCookies) > 0 {
+			j.jar.SetCookies(u, httpCookies)
+		}
+	}
+	return nil
 }
 
 // RemoveCookie removes a specific cookie by domain and name.

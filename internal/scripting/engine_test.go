@@ -1,6 +1,8 @@
 package scripting
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -142,5 +144,127 @@ func TestUtilityFunctions(t *testing.T) {
 	// UUID should be 36 chars
 	if len(result.Logs[2]) != 36 {
 		t.Errorf("expected 36 char UUID, got %d", len(result.Logs[2]))
+	}
+}
+
+func TestMD5(t *testing.T) {
+	engine := NewEngine(5 * time.Second)
+	result := engine.RunPreScript(`
+		var hash = gottp.md5("hello");
+		gottp.log(hash);
+	`, &ScriptRequest{}, nil)
+
+	if result.Err != nil {
+		t.Fatalf("unexpected error: %v", result.Err)
+	}
+	// MD5 of "hello" is 5d41402abc4b2a76b9719d911017c592
+	if result.Logs[0] != "5d41402abc4b2a76b9719d911017c592" {
+		t.Errorf("unexpected MD5: %s", result.Logs[0])
+	}
+}
+
+func TestHMACSha256(t *testing.T) {
+	engine := NewEngine(5 * time.Second)
+	result := engine.RunPreScript(`
+		var mac = gottp.hmacSha256("message", "secret");
+		gottp.log(mac);
+	`, &ScriptRequest{}, nil)
+
+	if result.Err != nil {
+		t.Fatalf("unexpected error: %v", result.Err)
+	}
+	if len(result.Logs[0]) != 64 {
+		t.Errorf("expected 64 char HMAC, got %d", len(result.Logs[0]))
+	}
+}
+
+func TestTimestamp(t *testing.T) {
+	engine := NewEngine(5 * time.Second)
+	result := engine.RunPreScript(`
+		var ts = gottp.timestamp();
+		gottp.log(String(ts));
+		var tsMs = gottp.timestampMs();
+		gottp.log(String(tsMs));
+	`, &ScriptRequest{}, nil)
+
+	if result.Err != nil {
+		t.Fatalf("unexpected error: %v", result.Err)
+	}
+	if len(result.Logs) != 2 {
+		t.Fatalf("expected 2 logs, got %d", len(result.Logs))
+	}
+	// Timestamps should be numeric strings
+	if len(result.Logs[0]) < 10 {
+		t.Errorf("timestamp too short: %s", result.Logs[0])
+	}
+	if len(result.Logs[1]) < 13 {
+		t.Errorf("timestamp ms too short: %s", result.Logs[1])
+	}
+}
+
+func TestRandomInt(t *testing.T) {
+	engine := NewEngine(5 * time.Second)
+	result := engine.RunPreScript(`
+		var r = gottp.randomInt(0, 10);
+		gottp.log(String(r));
+		var r2 = gottp.randomInt(100);
+		gottp.log(String(r2));
+	`, &ScriptRequest{}, nil)
+
+	if result.Err != nil {
+		t.Fatalf("unexpected error: %v", result.Err)
+	}
+	if len(result.Logs) != 2 {
+		t.Fatalf("expected 2 logs, got %d", len(result.Logs))
+	}
+}
+
+func TestSleep(t *testing.T) {
+	engine := NewEngine(5 * time.Second)
+	start := time.Now()
+	result := engine.RunPreScript(`
+		gottp.sleep(100);
+	`, &ScriptRequest{}, nil)
+	elapsed := time.Since(start)
+
+	if result.Err != nil {
+		t.Fatalf("unexpected error: %v", result.Err)
+	}
+	if elapsed < 80*time.Millisecond {
+		t.Errorf("sleep too short: %v", elapsed)
+	}
+}
+
+func TestReadFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "test.json")
+	os.WriteFile(path, []byte(`{"key":"value"}`), 0644)
+
+	engine := NewEngine(5 * time.Second)
+	result := engine.RunPreScript(`
+		var content = gottp.readFile("`+path+`");
+		gottp.log(content);
+	`, &ScriptRequest{}, nil)
+
+	if result.Err != nil {
+		t.Fatalf("unexpected error: %v", result.Err)
+	}
+	if result.Logs[0] != `{"key":"value"}` {
+		t.Errorf("unexpected file content: %s", result.Logs[0])
+	}
+}
+
+func TestReadFileNotFound(t *testing.T) {
+	engine := NewEngine(5 * time.Second)
+	result := engine.RunPreScript(`
+		var content = gottp.readFile("/nonexistent/file.txt");
+		gottp.log(String(content));
+	`, &ScriptRequest{}, nil)
+
+	if result.Err != nil {
+		t.Fatalf("unexpected error: %v", result.Err)
+	}
+	if result.Logs[0] != "undefined" {
+		t.Errorf("expected undefined for missing file, got %s", result.Logs[0])
 	}
 }

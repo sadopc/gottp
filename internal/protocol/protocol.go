@@ -46,13 +46,17 @@ type Request struct {
 
 // AuthConfig holds authentication settings.
 type AuthConfig struct {
-	Type     string // none, basic, bearer, apikey, oauth2, awsv4
+	Type     string // none, basic, bearer, apikey, oauth2, awsv4, digest
 	Username string
 	Password string
 	Token    string
 	APIKey   string
 	APIValue string
 	APIIn    string // header, query
+
+	// Digest auth
+	DigestUsername string
+	DigestPassword string
 
 	// OAuth2
 	OAuth2 *OAuth2AuthConfig
@@ -94,6 +98,15 @@ type TimingDetail struct {
 	TTFB         time.Duration `json:"ttfb"`     // Time to first byte (server processing)
 	Transfer     time.Duration `json:"transfer"` // Response body transfer
 	Total        time.Duration `json:"total"`
+}
+
+// StreamMessage represents a message in a streaming RPC.
+type StreamMessage struct {
+	Content   string
+	IsJSON    bool
+	Timestamp time.Time
+	Direction string // "sent" or "received"
+	Err       error
 }
 
 // Response is the unified response type.

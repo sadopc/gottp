@@ -10,8 +10,10 @@ import (
 	"github.com/serdar/gottp/internal/core/collection"
 	"github.com/serdar/gottp/internal/core/environment"
 	"github.com/serdar/gottp/internal/export"
+	"github.com/serdar/gottp/internal/export/codegen"
 	curlimport "github.com/serdar/gottp/internal/import/curl"
 	"github.com/serdar/gottp/internal/protocol"
+	"github.com/serdar/gottp/internal/templates"
 	"github.com/serdar/gottp/internal/ui/msgs"
 )
 
@@ -107,6 +109,11 @@ func authConfigToCollection(auth *protocol.AuthConfig) *collection.Auth {
 				Service:         auth.AWSAuth.Service,
 			}
 		}
+	case "digest":
+		ca.Digest = &collection.DigestAuth{
+			Username: auth.DigestUsername,
+			Password: auth.DigestPassword,
+		}
 	}
 	return ca
 }
@@ -147,6 +154,69 @@ func (a App) copyAsCurl() (tea.Model, tea.Cmd) {
 		return a, cmd
 	}
 	cmd := a.toast.Show("Copied as cURL", false, 2*time.Second)
+	return a, cmd
+}
+
+func (a App) handleGenerateCode(msg msgs.GenerateCodeMsg) (tea.Model, tea.Cmd) {
+	req := a.editor.BuildRequest()
+	if req.URL == "" {
+		cmd := a.toast.Show("No URL to generate code for", true, 2*time.Second)
+		return a, cmd
+	}
+
+	// Resolve env vars before generating
+	envVars := a.store.EnvVars
+	var colVars map[string]string
+	if a.store.Collection != nil {
+		colVars = a.store.Collection.Variables
+	}
+	if envVars == nil {
+		envVars = map[string]string{}
+	}
+	if colVars == nil {
+		colVars = map[string]string{}
+	}
+	req.URL = environment.Resolve(req.URL, envVars, colVars)
+	for k, v := range req.Headers {
+		req.Headers[k] = environment.Resolve(v, envVars, colVars)
+	}
+	for k, v := range req.Params {
+		req.Params[k] = environment.Resolve(v, envVars, colVars)
+	}
+	if len(req.Body) > 0 {
+		req.Body = []byte(environment.Resolve(string(req.Body), envVars, colVars))
+	}
+
+	code, err := codegen.Generate(req, codegen.Language(msg.Language))
+	if err != nil {
+		cmd := a.toast.Show("Code generation failed: "+err.Error(), true, 3*time.Second)
+		return a, cmd
+	}
+
+	if err := clipboard.WriteAll(code); err != nil {
+		cmd := a.toast.Show("Clipboard error: "+err.Error(), true, 3*time.Second)
+		return a, cmd
+	}
+
+	cmd := a.toast.Show("Copied "+msg.Language+" code", false, 2*time.Second)
+	return a, cmd
+}
+
+func (a App) handleInsertTemplate(msg msgs.InsertTemplateMsg) (tea.Model, tea.Cmd) {
+	tmpl := templates.ByName(msg.TemplateName)
+	if tmpl == nil {
+		cmd := a.toast.Show("Template not found: "+msg.TemplateName, true, 2*time.Second)
+		return a, cmd
+	}
+
+	req := tmpl.Request
+	a.store.OpenRequest(req)
+	a.syncTabs()
+	a.editor.LoadRequest(req)
+	a.focus = msgs.FocusEditor
+	a.updateFocus()
+
+	cmd := a.toast.Show("Template: "+tmpl.Name, false, 2*time.Second)
 	return a, cmd
 }
 

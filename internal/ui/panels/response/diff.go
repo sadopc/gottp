@@ -34,7 +34,7 @@ func NewDiffModel(t theme.Theme, s theme.Styles) DiffModel {
 
 // SetDiff computes and displays a diff between baseline and current response.
 func (m *DiffModel) SetDiff(baseline, current []byte) {
-	lines := diff.DiffLines(string(baseline), string(current))
+	lines := diff.DiffLinesWithWords(string(baseline), string(current))
 	m.hasDiff = true
 
 	added := 0
@@ -46,13 +46,23 @@ func (m *DiffModel) SetDiff(baseline, current []byte) {
 		case diff.Added:
 			added++
 			prefix := lipgloss.NewStyle().Foreground(m.th.Green).Render("+ ")
-			content := lipgloss.NewStyle().Foreground(m.th.Green).Render(line.Content)
-			b.WriteString(prefix + content + "\n")
+			b.WriteString(prefix)
+			if len(line.Words) > 0 {
+				m.renderWordDiffAdded(&b, line.Words)
+			} else {
+				b.WriteString(lipgloss.NewStyle().Foreground(m.th.Green).Render(line.Content))
+			}
+			b.WriteString("\n")
 		case diff.Removed:
 			removed++
 			prefix := lipgloss.NewStyle().Foreground(m.th.Red).Render("- ")
-			content := lipgloss.NewStyle().Foreground(m.th.Red).Render(line.Content)
-			b.WriteString(prefix + content + "\n")
+			b.WriteString(prefix)
+			if len(line.Words) > 0 {
+				m.renderWordDiffRemoved(&b, line.Words)
+			} else {
+				b.WriteString(lipgloss.NewStyle().Foreground(m.th.Red).Render(line.Content))
+			}
+			b.WriteString("\n")
 		case diff.Same:
 			prefix := lipgloss.NewStyle().Foreground(m.th.Muted).Render("  ")
 			content := lipgloss.NewStyle().Foreground(m.th.Text).Render(line.Content)
@@ -62,6 +72,44 @@ func (m *DiffModel) SetDiff(baseline, current []byte) {
 
 	m.summary = fmt.Sprintf("%d added, %d removed", added, removed)
 	m.viewport.SetContent(b.String())
+}
+
+// renderWordDiffRemoved renders word-level detail for a Removed line.
+// Same and Removed words are shown; Added words are skipped (they appear on the paired Added line).
+// Removed words are highlighted with bold to show exactly what changed.
+func (m *DiffModel) renderWordDiffRemoved(b *strings.Builder, words []diff.WordDiff) {
+	baseStyle := lipgloss.NewStyle().Foreground(m.th.Red)
+	highlightStyle := baseStyle.Bold(true)
+
+	for _, w := range words {
+		switch w.Type {
+		case diff.Removed:
+			b.WriteString(highlightStyle.Render(w.Content))
+		case diff.Same:
+			b.WriteString(baseStyle.Render(w.Content))
+		case diff.Added:
+			// Skip Added words on a Removed line; they belong to the Added line.
+		}
+	}
+}
+
+// renderWordDiffAdded renders word-level detail for an Added line.
+// Same and Added words are shown; Removed words are skipped (they appear on the paired Removed line).
+// Added words are highlighted with bold to show exactly what changed.
+func (m *DiffModel) renderWordDiffAdded(b *strings.Builder, words []diff.WordDiff) {
+	baseStyle := lipgloss.NewStyle().Foreground(m.th.Green)
+	highlightStyle := baseStyle.Bold(true)
+
+	for _, w := range words {
+		switch w.Type {
+		case diff.Added:
+			b.WriteString(highlightStyle.Render(w.Content))
+		case diff.Same:
+			b.WriteString(baseStyle.Render(w.Content))
+		case diff.Removed:
+			// Skip Removed words on an Added line; they belong to the Removed line.
+		}
+	}
 }
 
 // SetSize updates the diff viewport dimensions.

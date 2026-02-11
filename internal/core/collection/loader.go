@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
 )
 
@@ -51,7 +52,7 @@ func LoadFromDir(dir string) ([]*Collection, error) {
 func assignIDs(items []Item) {
 	for i := range items {
 		if items[i].Request != nil && items[i].Request.ID == "" {
-			items[i].Request.ID = fmt.Sprintf("req_%d", i)
+			items[i].Request.ID = uuid.New().String()
 		}
 		if items[i].Folder != nil {
 			assignIDs(items[i].Folder.Items)

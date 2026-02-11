@@ -4,28 +4,37 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What is gottp?
 
-A Postman/Insomnia-like TUI API client built in Go with Bubble Tea. Three-panel layout (sidebar, editor, response) with vim-style modal editing, collections stored as YAML, and multiple theme support (Catppuccin variants, Nord, Dracula, Gruvbox, Tokyo Night). Supports HTTP, GraphQL, WebSocket, and gRPC protocols with environment variable interpolation, auth (basic/bearer/apikey/oauth2/awsv4), request history (SQLite), cURL/HAR import/export, Postman/Insomnia/OpenAPI import, response diffing, pre/post-request JavaScript scripting, jump navigation, proxy/mTLS/cookie jar support, and a headless CLI runner (`gottp run`).
+A Postman/Insomnia-like TUI API client built in Go with Bubble Tea. Three-panel layout (sidebar, editor, response) with vim-style modal editing, collections stored as YAML, and 8+ theme support. Supports HTTP, GraphQL (including subscriptions), WebSocket, and gRPC (including streaming) protocols with environment variable interpolation, 7 auth methods (basic/bearer/apikey/oauth2/awsv4/digest/none), request history (SQLite), cURL/HAR/Postman/Insomnia/OpenAPI import/export, response diffing (line + word-level), pre/post-request JavaScript scripting, code generation (8 languages), request chaining/workflows, mock server, and a headless CLI runner.
 
 ## Build & Test Commands
 
 ```bash
-make build          # Build to bin/gottp (with version ldflags)
-make run            # Build and run
-make test           # go test ./...
-make test-race      # go test -race ./...
-make lint           # golangci-lint run
+make build            # Build to bin/gottp (with version ldflags)
+make run              # Build and run
+make test             # go test ./...
+make test-race        # go test -race ./...
+make test-cover       # Coverage report with atomic mode
+make lint             # golangci-lint run
+make bench            # Benchmarks for HTTP client, scripting, diff, collection loader
+make fuzz             # Fuzz all import parsers (30s each)
+make vulncheck        # govulncheck ./...
+make install          # go install to $GOPATH/bin
 make release-dry-run  # GoReleaser snapshot (test release build)
-go test ./internal/protocol/http/ -run TestClient_GET   # Single test
-go test ./internal/runner/ -v                            # Runner tests
-go test ./internal/core/cookies/                         # Cookie jar tests
-go test ./internal/core/tls/                             # TLS config tests
-go test ./internal/import/har/                           # HAR parser tests
-go test ./internal/export/har/                           # HAR exporter tests
+
+# Single test / package
+go test ./internal/protocol/http/ -run TestClient_GET
+go test ./internal/runner/ -v
+go test ./internal/auth/digest/
+go test ./internal/mock/
 ```
 
 Launch TUI: `./bin/gottp --collection path/to/file.gottp.yaml`
 
 Headless CLI: `./bin/gottp run collection.gottp.yaml --env Production --output json`
+
+Mock server: `./bin/gottp mock collection.gottp.yaml --port 8080`
+
+CLI subcommands: `run`, `init`, `validate`, `fmt`, `import`, `export`, `mock`, `completion`, `version`, `help`
 
 Environment files: place `environments.yaml` next to the collection file. The first environment is auto-selected on startup.
 
@@ -35,7 +44,7 @@ Environment files: place `environments.yaml` next to the collection file. The fi
 
 ### Critical: Message Types Package
 
-`internal/ui/msgs/msgs.go` is a **shared message types package** created to avoid import cycles between `app` and UI components. All `tea.Msg` types (`SendRequestMsg`, `RequestSentMsg`, `SetModeMsg`, `CopyAsCurlMsg`, `ImportCurlMsg`, `OpenEditorMsg`, `HistorySelectedMsg`, etc.) and enums (`AppMode`, `PanelFocus`) live here. Both `app` and all UI packages import `msgs` — never import `app` from UI packages.
+`internal/ui/msgs/msgs.go` is a **shared message types package** created to avoid import cycles between `app` and UI components. All `tea.Msg` types and enums (`AppMode`, `PanelFocus`) live here. Both `app` and all UI packages import `msgs` — never import `app` from UI packages. When adding a new message type, add it to `msgs.go`, not to `app` or UI packages.
 
 ### Key Packages
 
@@ -43,26 +52,22 @@ Environment files: place `environments.yaml` next to the collection file. The fi
 |---------|------|
 | `internal/app/` | Root model, split into focused sub-modules (see below) |
 | `internal/ui/msgs/` | Shared message types (breaks import cycles) |
-| `internal/ui/panels/sidebar/` | Collection tree + history list (two-section navigation) |
-| `internal/ui/panels/editor/` | Multi-protocol request editor (HTTPForm, GraphQLForm, WebSocketForm, GRPCForm) with ProtocolSelector |
-| `internal/ui/panels/response/` | Response viewer (body/headers/cookies/timing/diff/console for HTTP; messages/headers/timing for WebSocket) |
+| `internal/ui/panels/{sidebar,editor,response}/` | Three main panels |
 | `internal/ui/components/` | Reusable: KVTable, TabBar, StatusBar, CommandPalette, Help, Modal, Toast, JumpOverlay |
-| `internal/ui/theme/` | Theme catalog (8+ themes), lipgloss style definitions, custom YAML theme loader |
+| `internal/ui/theme/` | Theme catalog, lipgloss styles, custom YAML theme loader |
 | `internal/ui/layout/` | Responsive three-panel layout calculator |
 | `internal/protocol/` | Protocol interface, Registry, HTTP/GraphQL/WebSocket/gRPC clients |
 | `internal/core/collection/` | YAML collection model, loader, saver |
-| `internal/core/environment/` | Environment variables, `{{var}}` interpolation via `Resolve()` |
-| `internal/core/history/` | SQLite-backed request history (Entry, Store) at `~/.local/share/gottp/history.db` |
-| `internal/core/state/` | Central state (tabs, active collection, active env) |
-| `internal/core/cookies/` | Thread-safe cookie jar wrapping `net/http/cookiejar` |
-| `internal/core/tls/` | mTLS config builder (client cert+key, CA bundles, skip-verify) |
-| `internal/export/` | curl export (`AsCurl()`), HAR export |
-| `internal/import/` | Format auto-detection, curl/Postman/Insomnia/OpenAPI/HAR importers |
-| `internal/runner/` | Headless CLI runner for `gottp run` with text/JSON/JUnit output |
-| `internal/auth/oauth2/` | OAuth2 flows (auth code w/ PKCE, client credentials, password grant) |
-| `internal/auth/awsv4/` | AWS Signature v4 request signing |
-| `internal/diff/` | Myers diff algorithm for response diffing |
-| `internal/scripting/` | JavaScript pre/post-request scripting via goja engine |
+| `internal/core/environment/` | Environment variables, `{{var}}` interpolation via `Resolve()`, AES-256-GCM encryption |
+| `internal/core/{history,state,cookies,tls}/` | SQLite history, central state, cookie jar, mTLS config |
+| `internal/export/` | curl/HAR/Postman/Insomnia export + `codegen/` (8 languages) |
+| `internal/import/` | Format auto-detection + curl/Postman/Insomnia/OpenAPI/HAR importers |
+| `internal/runner/` | Headless CLI runner, perf baselines, workflow execution |
+| `internal/auth/{oauth2,awsv4,digest}/` | Auth implementations |
+| `internal/diff/` | Myers diff (line + word-level via `DiffLinesWithWords()`) |
+| `internal/scripting/` | JavaScript scripting via goja engine |
+| `internal/mock/` | Mock HTTP server with CORS, latency/error simulation |
+| `internal/templates/` | Pre-built request templates |
 | `internal/config/` | App config from `~/.config/gottp/config.yaml` |
 
 ### app.go Sub-Module Structure
@@ -71,12 +76,12 @@ The `internal/app/` package is split into focused files:
 
 | File | Contents |
 |------|----------|
-| `app.go` | `App` struct, `New()`, `Init()`, `Update()`, `View()`, `resizePanels()`, layout helpers |
-| `app_keys.go` | `handleGlobalKey()`, `handlePanelKey()`, `updateEditorInsert()`, `cycleFocus()`, `updateFocus()`, `activateJumpMode()` |
-| `app_request.go` | `sendRequest()`, `handleRequestSent()`, `initiateOAuth2()`, `handleOAuth2Token()`, introspection/reflection handlers, script result conversion |
-| `app_overlays.go` | `handleSwitchTheme()`, `handleImportFile()`, `handleImportComplete()`, `handleSetBaseline()`, `openExternalEditor()` |
-| `app_tabs.go` | `syncTabs()`, `loadActiveRequest()`, `loadHistory()`, `handleRequestSelected()`, `handleHistorySelected()` |
-| `app_save.go` | `saveCollection()`, `authConfigToCollection()`, `copyAsCurl()`, `importCurl()` |
+| `app.go` | `App` struct, `New()`, `Init()`, `Update()`, `View()`, `resizePanels()` |
+| `app_keys.go` | `handleGlobalKey()`, `handlePanelKey()`, `updateEditorInsert()`, `cycleFocus()`, `updateFocus()` |
+| `app_request.go` | `sendRequest()`, `handleRequestSent()`, `initiateOAuth2()`, introspection/reflection handlers |
+| `app_overlays.go` | `handleSwitchTheme()`, `handleImportFile()`, `handleSetBaseline()`, `openExternalEditor()` |
+| `app_tabs.go` | `syncTabs()`, `loadActiveRequest()`, `loadHistory()`, `handleRequestSelected()` |
+| `app_save.go` | `saveCollection()`, `copyAsCurl()`, `importCurl()`, `handleGenerateCode()`, `handleInsertTemplate()` |
 | `keymap.go` | `KeyMap` struct and `DefaultKeyMap()` |
 
 ### Message Routing in app.go
@@ -97,7 +102,7 @@ Implemented: HTTP, GraphQL, WebSocket, gRPC. The `Registry` dispatches requests 
 
 ### CLI Runner (`gottp run`)
 
-`cmd/gottp/main.go` routes to either TUI mode (default) or `runCmd()` when `os.Args[1] == "run"`. The runner in `internal/runner/` loads the collection, resolves env vars, executes requests with scripting, and outputs results. Exit codes: 0=pass, 1=test assertion failure, 2=request error. Output formats: text (human-readable), json (structured), junit (CI XML).
+`cmd/gottp/main.go` routes to TUI mode (default) or subcommands. The runner in `internal/runner/` loads the collection, resolves env vars, executes requests with scripting, and outputs results. Supports workflow execution (`--workflow`), performance baselines (`--perf-save`/`--perf-baseline`). Exit codes: 0=pass, 1=test assertion failure, 2=request error. Output formats: text, json, junit.
 
 ### UI Modes
 
@@ -107,71 +112,55 @@ Implemented: HTTP, GraphQL, WebSocket, gRPC. The `Registry` dispatches requests 
 
 `sendRequest()` calls `environment.Resolve()` on URL, header values, param values, body, and auth fields before executing. Resolution priority: env vars > collection vars > OS env.
 
-### Save Flow
-
-`saveCollection()` syncs form state back to `store.ActiveRequest()` (method, URL, params, headers, body, auth) before writing YAML.
-
 ### Multi-Protocol Editor
 
 `editor.Model` wraps four protocol-specific forms (`HTTPForm`, `GraphQLForm`, `WebSocketForm`, `GRPCForm`) and a `ProtocolSelector` widget. `Ctrl+P` cycles protocols. All form access goes through delegation methods on `editor.Model`:
-- `BuildRequest()`, `GetParams()`, `GetHeaders()`, `GetBodyContent()`, `SetBody()`, `BuildAuth()`, `FocusURL()` — each delegates to the active form
-- `LoadRequest()` auto-detects protocol from collection request fields (GraphQL/GRPC/WebSocket config)
+- `BuildRequest()`, `GetParams()`, `GetHeaders()`, `GetBodyContent()`, `SetBody()`, `BuildAuth()`, `FocusURL()`
+- `LoadRequest()` auto-detects protocol from collection request fields
 - **Never use `editor.Form()` directly** — use the delegation methods instead
 
-### Response Panel Modes
+### Auth Section
 
-The response panel has two display modes:
-- **HTTP mode**: tabs = Body, Headers, Cookies, Timing, Diff, Console
-- **WebSocket mode**: tabs = Messages, Headers, Timing
+`AuthSection` in `editor/auth_section.go` supports none/basic/bearer/apikey/oauth2/awsv4/digest. `BuildAuth()` returns `*protocol.AuthConfig`, `LoadAuth()` populates from `*collection.Auth`. When adding a new auth type: update `authTypes` slice, add input fields, update `BuildAuth()`/`LoadAuth()`/`View()`/`maxCursor()`.
 
-`SetMode(proto)` switches between them. The Console tab shows JavaScript script output (logs + test results). The Timing tab shows a waterfall visualization (DNS/TCP/TLS/TTFB/Transfer) when `TimingDetail` is available in the response.
+### Scripting Engine
+
+`internal/scripting/` provides a JavaScript (ES5.1+) engine via `goja`. Pre-scripts can mutate the request; post-scripts have read-only access to the response. The `gottp` global object provides: `setEnvVar()`, `getEnvVar()`, `log()`, `test(name, fn)`, `assert()`, `base64encode/decode()`, `sha256()`, `md5()`, `hmacSha256()`, `uuid()`, `timestamp()`, `timestampMs()`, `randomInt()`, `sleep()`, `readFile()`. Each execution uses a fresh runtime with configurable timeout (default 5s).
 
 ### HTTP Client Infrastructure
 
 The HTTP client (`internal/protocol/http/client.go`) supports:
-- **Proxy**: `SetProxy(proxyURL, noProxy string)` — HTTP/HTTPS/SOCKS5 proxy with per-request override via `req.ProxyURL`. Respects `HTTP_PROXY`/`HTTPS_PROXY`/`NO_PROXY` env vars as fallback.
-- **Cookie Jar**: `SetCookieJar(jar)` — auto-captures `Set-Cookie` and sends cookies on subsequent requests within a collection.
-- **mTLS**: `SetTLSConfig(cfg)` — client cert+key, CA bundles, skip-verify via `internal/core/tls/`.
-- **Timing**: Uses `net/http/httptrace` to capture DNS/TCP/TLS/TTFB/Transfer breakdown, returned as `protocol.TimingDetail` in responses.
-
-### Auth Section
-
-`AuthSection` in `editor/auth_section.go` supports none/basic/bearer/apikey/oauth2/awsv4. Vim-style j/k navigation, h/l or space to cycle type, enter to edit fields. `BuildAuth()` returns `*protocol.AuthConfig`, `LoadAuth()` populates from `*collection.Auth`.
-
-### Scripting Engine
-
-`internal/scripting/` provides a JavaScript (ES5.1+) engine via `goja`. Pre-scripts can mutate the request (URL, headers, params, body); post-scripts have read-only access to the response. The `gottp` global object provides `setEnvVar()`, `getEnvVar()`, `log()`, `test(name, fn)`, `assert()`, `base64encode/decode()`, `sha256()`, `uuid()`. Each execution uses a fresh runtime with configurable timeout (default 5s).
-
-### History
-
-SQLite store at `~/.local/share/gottp/history.db` via `modernc.org/sqlite` (pure Go, no CGO). Entries saved after each successful request. Sidebar displays recent 20 with relative timestamps. Selecting a history entry opens it in a new tab.
+- **Proxy**: `SetProxy(proxyURL, noProxy string)` — HTTP/HTTPS/SOCKS5 proxy with per-request override
+- **Cookie Jar**: `SetCookieJar(jar)` — auto-captures `Set-Cookie` and sends cookies
+- **mTLS**: `SetTLSConfig(cfg)` — client cert+key, CA bundles, skip-verify
+- **Timing**: `net/http/httptrace` for DNS/TCP/TLS/TTFB/Transfer breakdown
+- **Digest Auth**: Automatically retries on 401 with `WWW-Authenticate: Digest` header
 
 ### CI/CD
 
-GitHub Actions workflows in `.github/workflows/`:
+GitHub Actions in `.github/workflows/`:
 - `ci.yml` — test, lint, build on push/PR (ubuntu + macos, Go 1.25.x)
 - `release.yml` — GoReleaser on tag push (v*) for cross-platform binaries
-
-`.goreleaser.yml` builds for linux/darwin (amd64/arm64) + windows (amd64) with version ldflags.
 
 ## Conventions
 
 - Value receivers for `Update()` and `View()`, pointer receivers for mutating helpers (`startEditing`, `commitEdit`, `SetSize`, `SetPairs`)
-- Sub-components (KVTable, HTTPForm, AuthSection) return `(Model, Cmd)` from Update, not `tea.Model` — they use concrete types
+- Sub-components return `(Model, Cmd)` from Update, not `tea.Model` — they use concrete types
 - Responsive layout breakpoints: <60 cols = single panel, <100 cols = two panel, >=100 = three panel
-- Collection files use `.gottp.yaml` extension
-- Environment files use `environments.yaml` (placed next to collection)
+- Collection files use `.gottp.yaml` extension; environment files use `environments.yaml`
 - HTTP method colors: GET=green, POST=yellow, PUT=blue, PATCH=peach, DELETE=red (Catppuccin palette)
-- `app.New()` signature: `New(col *collection.Collection, colPath string, cfg config.Config) App`
-- Sub-models that need theme colors (e.g., DiffModel, ConsoleModel, WSLogModel) take both `theme.Theme` and `theme.Styles` in their constructors; store `th` for colors and `styles` for pre-computed lipgloss styles
-- Protocol-specific editor forms (GraphQLForm, etc.) follow the same patterns as HTTPForm: sub-tabs, `BuildRequest()`, `LoadRequest()`, `Editing() bool`
-- Config fields for new infra (proxy, TLS) use `yaml:"...,omitempty"` tags and zero-value defaults
+- Sub-models needing theme colors take both `theme.Theme` and `theme.Styles` in constructors; store `th` for colors and `styles` for pre-computed lipgloss styles
+- Config fields use `yaml:"...,omitempty"` tags and zero-value defaults
 - Import format detection lives in `internal/import/detect.go` — add new format checks there when adding importers
+- `saveCollection()` syncs form state back to `store.ActiveRequest()` before writing YAML
+- `authConfigToCollection()` in `app_save.go` maps `protocol.AuthConfig` → `collection.Auth` for persistence
 
 ## Known Gotchas
 
-- KVTable View() must build the cursor prefix (`"> "` / `"  "`) separately before joining with styled content. Slicing into styled strings (e.g., `row[2:]`) breaks ANSI escape sequences.
+- KVTable View() must build the cursor prefix (`"> "` / `"  "`) separately before joining with styled content. Slicing into styled strings breaks ANSI escape sequences.
 - Response body search uses plain text (not syntax-highlighted) for match highlighting to avoid ANSI escape interference.
-- Command palette has dynamic mode: `OpenEnvPicker()` replaces commands temporarily; `ResetCommands()` restores defaults on close.
+- Command palette has dynamic mode: `OpenEnvPicker()`/`OpenThemePicker()` replace commands temporarily; `ResetCommands()` restores defaults on close.
 - The HTTP client creates a new `http.Transport` per-request when proxy/TLS config is present to support per-request proxy overrides. Without custom config, it reuses the default transport.
 - The `internal/core/tls` package is imported as `gotls` in config to avoid conflict with `crypto/tls`.
+- Digest auth performs a transparent 401 retry — the first request intentionally gets a 401, then the response's `WWW-Authenticate` challenge is used to compute the `Authorization` header for the retry.
+- The `diff.DiffLinesWithWords()` function first computes line-level diff, then enriches consecutive Removed+Added pairs with word-level detail. The `Words` field is nil for pure additions/removals.

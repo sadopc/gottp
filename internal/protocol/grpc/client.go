@@ -29,6 +29,11 @@ import (
 type Client struct {
 	mu    sync.Mutex
 	conns map[string]*grpc.ClientConn
+
+	// Streaming state for client-streaming and bidi-streaming RPCs.
+	streamMu    sync.Mutex
+	streamInput chan string // channel for feeding messages to the request supplier
+	streamDone  chan struct{}
 }
 
 // New creates a new gRPC client.
@@ -190,6 +195,232 @@ func (c *Client) Close() {
 	}
 }
 
+// IsStreaming uses server reflection to detect whether the given method uses
+// client-streaming, server-streaming, or both (bidirectional).
+func (c *Client) IsStreaming(ctx context.Context, req *protocol.Request) (serverStream, clientStream bool, err error) {
+	if err = c.Validate(req); err != nil {
+		return false, false, err
+	}
+
+	conn, err := c.getConn(req.URL)
+	if err != nil {
+		return false, false, fmt.Errorf("connecting to %s: %w", req.URL, err)
+	}
+
+	refClient := grpcreflect.NewClientAuto(ctx, conn)
+	defer refClient.Reset()
+
+	descSource := grpcurl.DescriptorSourceFromServer(ctx, refClient)
+
+	fullMethod := req.GRPCService + "/" + req.GRPCMethod
+
+	// Find the method descriptor via the service descriptor.
+	dsc, err := descSource.FindSymbol(req.GRPCService)
+	if err != nil {
+		return false, false, fmt.Errorf("finding service %s: %w", req.GRPCService, err)
+	}
+
+	sd, ok := dsc.(*desc.ServiceDescriptor)
+	if !ok {
+		return false, false, fmt.Errorf("symbol %s is not a service descriptor", req.GRPCService)
+	}
+
+	for _, md := range sd.GetMethods() {
+		if md.GetFullyQualifiedName() == req.GRPCMethod || md.GetName() == req.GRPCMethod ||
+			req.GRPCService+"/"+md.GetName() == fullMethod {
+			return md.IsServerStreaming(), md.IsClientStreaming(), nil
+		}
+	}
+
+	return false, false, fmt.Errorf("method %s not found in service %s", req.GRPCMethod, req.GRPCService)
+}
+
+// StreamExecute executes a streaming gRPC RPC, sending each received message
+// to msgChan as it arrives. For server-streaming RPCs, InvokeRPC is called
+// with the request body and the handler streams responses to the channel.
+// For client-streaming or bidi-streaming RPCs, messages are read from an
+// internal input channel (fed via SendStreamMessage) and sent as the request
+// supplier. The caller should close msgChan only after StreamExecute returns.
+// The channel is closed by this method when the RPC completes.
+func (c *Client) StreamExecute(ctx context.Context, req *protocol.Request, msgChan chan<- protocol.StreamMessage) error {
+	if err := c.Validate(req); err != nil {
+		return err
+	}
+
+	conn, err := c.getConn(req.URL)
+	if err != nil {
+		return fmt.Errorf("connecting to %s: %w", req.URL, err)
+	}
+
+	fullMethod := req.GRPCService + "/" + req.GRPCMethod
+
+	refClient := grpcreflect.NewClientAuto(ctx, conn)
+	defer refClient.Reset()
+
+	descSource := grpcurl.DescriptorSourceFromServer(ctx, refClient)
+
+	md := buildMetadata(req)
+	var headers []string
+	for k, vals := range md {
+		for _, v := range vals {
+			headers = append(headers, k+": "+v)
+		}
+	}
+
+	formatter := grpcurl.NewJSONFormatter(true, nil)
+
+	handler := &responseHandler{
+		out:       io.Discard,
+		formatter: formatter,
+		streaming: true,
+		msgChan:   msgChan,
+	}
+
+	// Detect streaming direction to decide request supplier strategy.
+	svrStream, cliStream, detectErr := c.IsStreaming(ctx, req)
+	_ = svrStream // server streaming is handled by the handler
+
+	timeout := req.Timeout
+	if timeout == 0 {
+		timeout = 5 * time.Minute // longer timeout for streaming
+	}
+	invokeCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	if cliStream && detectErr == nil {
+		// Client-streaming or bidi: use an input channel for the request supplier.
+		c.streamMu.Lock()
+		c.streamInput = make(chan string, 16)
+		c.streamDone = make(chan struct{})
+		c.streamMu.Unlock()
+
+		// Send the initial body if provided.
+		if len(req.Body) > 0 {
+			msgChan <- protocol.StreamMessage{
+				Content:   string(req.Body),
+				IsJSON:    true,
+				Timestamp: time.Now(),
+				Direction: "sent",
+			}
+		}
+
+		// Build a request supplier that reads from the input channel.
+		// The supplier is called repeatedly by grpcurl; returning io.EOF signals
+		// the end of the request stream.
+		firstMsg := true
+		requestSupplier := func(msg proto.Message) error {
+			var jsonData string
+			if firstMsg && len(req.Body) > 0 {
+				firstMsg = false
+				jsonData = string(req.Body)
+			} else {
+				select {
+				case data, ok := <-c.streamInput:
+					if !ok {
+						return io.EOF
+					}
+					jsonData = data
+				case <-invokeCtx.Done():
+					return invokeCtx.Err()
+				}
+			}
+
+			// Parse the JSON into the proto message using a temporary parser.
+			parser := grpcurl.NewJSONRequestParser(bytes.NewReader([]byte(jsonData)), nil)
+			return parser.Next(msg)
+		}
+
+		go func() {
+			defer close(msgChan)
+			defer func() {
+				c.streamMu.Lock()
+				if c.streamDone != nil {
+					close(c.streamDone)
+					c.streamDone = nil
+				}
+				c.streamInput = nil
+				c.streamMu.Unlock()
+			}()
+
+			rpcErr := grpcurl.InvokeRPC(invokeCtx, descSource, conn, fullMethod, headers, handler, requestSupplier)
+			if rpcErr != nil {
+				msgChan <- protocol.StreamMessage{
+					Timestamp: time.Now(),
+					Direction: "received",
+					Err:       rpcErr,
+				}
+			}
+		}()
+
+		return nil
+	}
+
+	// Server-streaming or unary-but-called-as-stream: use the body as a single request.
+	var requestBody io.Reader
+	if len(req.Body) > 0 {
+		requestBody = bytes.NewReader(req.Body)
+	} else {
+		requestBody = bytes.NewReader([]byte("{}"))
+	}
+	requestParser := grpcurl.NewJSONRequestParser(requestBody, nil)
+
+	go func() {
+		defer close(msgChan)
+
+		rpcErr := grpcurl.InvokeRPC(invokeCtx, descSource, conn, fullMethod, headers, handler, requestParser.Next)
+		if rpcErr != nil {
+			msgChan <- protocol.StreamMessage{
+				Timestamp: time.Now(),
+				Direction: "received",
+				Err:       rpcErr,
+			}
+		}
+	}()
+
+	return nil
+}
+
+// SendStreamMessage sends a message on an open client-streaming or bidi-streaming
+// RPC. The message should be valid JSON matching the method's input type.
+func (c *Client) SendStreamMessage(message string) error {
+	c.streamMu.Lock()
+	input := c.streamInput
+	c.streamMu.Unlock()
+
+	if input == nil {
+		return fmt.Errorf("no active client stream")
+	}
+
+	select {
+	case input <- message:
+		return nil
+	default:
+		return fmt.Errorf("stream input channel full")
+	}
+}
+
+// CloseStream closes the client-side of a client-streaming or bidi-streaming
+// RPC, signalling that no more messages will be sent. This causes the request
+// supplier to return io.EOF, which completes the client half of the stream.
+func (c *Client) CloseStream() error {
+	c.streamMu.Lock()
+	input := c.streamInput
+	done := c.streamDone
+	c.streamMu.Unlock()
+
+	if input == nil {
+		return fmt.Errorf("no active client stream")
+	}
+
+	close(input)
+
+	// Wait for the RPC to finish (the goroutine will signal streamDone).
+	if done != nil {
+		<-done
+	}
+	return nil
+}
+
 // getConn returns an existing connection or creates a new one for the given address.
 func (c *Client) getConn(addr string) (*grpc.ClientConn, error) {
 	c.mu.Lock()
@@ -274,6 +505,11 @@ type responseHandler struct {
 	responseTrailers metadata.MD
 	status           *status.Status
 	numResponses     int
+
+	// Streaming support: when streaming is true, OnReceiveResponse sends
+	// each formatted message to msgChan instead of writing to out.
+	streaming bool
+	msgChan   chan<- protocol.StreamMessage
 }
 
 func (h *responseHandler) OnResolveMethod(_ *desc.MethodDescriptor) {}
@@ -286,7 +522,28 @@ func (h *responseHandler) OnReceiveHeaders(md metadata.MD) {
 
 func (h *responseHandler) OnReceiveResponse(resp proto.Message) {
 	h.numResponses++
-	if respStr, err := h.formatter(resp); err == nil {
+	respStr, err := h.formatter(resp)
+	if err != nil {
+		if h.streaming && h.msgChan != nil {
+			h.msgChan <- protocol.StreamMessage{
+				Timestamp: time.Now(),
+				Direction: "received",
+				Err:       fmt.Errorf("formatting response: %w", err),
+			}
+		}
+		return
+	}
+
+	if h.streaming && h.msgChan != nil {
+		content := strings.TrimSpace(respStr)
+		isJSON := len(content) > 0 && (content[0] == '{' || content[0] == '[')
+		h.msgChan <- protocol.StreamMessage{
+			Content:   content,
+			IsJSON:    isJSON,
+			Timestamp: time.Now(),
+			Direction: "received",
+		}
+	} else {
 		fmt.Fprint(h.out, respStr)
 	}
 }

@@ -6,7 +6,7 @@ LDFLAGS  = -s -w \
 	-X github.com/serdar/gottp/pkg/version.Commit=$(COMMIT) \
 	-X github.com/serdar/gottp/pkg/version.Date=$(DATE)
 
-.PHONY: build run test lint clean install release-dry-run
+.PHONY: build run test test-race test-cover lint clean install release-dry-run vulncheck fuzz bench
 
 build:
 	@mkdir -p bin
@@ -21,11 +21,36 @@ test:
 test-race:
 	go test -race ./...
 
+test-cover:
+	go test -coverprofile=coverage.out -covermode=atomic ./...
+	go tool cover -func=coverage.out | tail -1
+	@echo "HTML report: go tool cover -html=coverage.out"
+
 lint:
 	golangci-lint run
 
+vulncheck:
+	govulncheck ./...
+
+fuzz:
+	@echo "Fuzzing cURL parser..."
+	-go test -fuzz=Fuzz -fuzztime=30s ./internal/import/curl/
+	@echo "Fuzzing Postman parser..."
+	-go test -fuzz=Fuzz -fuzztime=30s ./internal/import/postman/
+	@echo "Fuzzing Insomnia parser..."
+	-go test -fuzz=Fuzz -fuzztime=30s ./internal/import/insomnia/
+	@echo "Fuzzing OpenAPI parser..."
+	-go test -fuzz=Fuzz -fuzztime=30s ./internal/import/openapi/
+	@echo "Fuzzing HAR parser..."
+	-go test -fuzz=Fuzz -fuzztime=30s ./internal/import/har/
+	@echo "Fuzzing format detector..."
+	-go test -fuzz=Fuzz -fuzztime=30s ./internal/import/
+
+bench:
+	go test -bench=. -benchmem ./internal/protocol/http/ ./internal/scripting/ ./internal/diff/ ./internal/core/collection/
+
 clean:
-	rm -rf bin/
+	rm -rf bin/ coverage.out
 
 install:
 	go install -ldflags "$(LDFLAGS)" ./cmd/gottp

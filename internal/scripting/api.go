@@ -1,10 +1,15 @@
 package scripting
 
 import (
+	"crypto/hmac"
+	"crypto/md5"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"math/rand"
+	"os"
+	"time"
 
 	"github.com/dop251/goja"
 	"github.com/google/uuid"
@@ -117,6 +122,52 @@ func (a *ScriptAPI) registerOnRuntime(vm *goja.Runtime) {
 	})
 	gottpObj.Set("uuid", func(call goja.FunctionCall) goja.Value {
 		return vm.ToValue(uuid.New().String())
+	})
+	gottpObj.Set("md5", func(call goja.FunctionCall) goja.Value {
+		h := md5.Sum([]byte(call.Argument(0).String()))
+		return vm.ToValue(hex.EncodeToString(h[:]))
+	})
+	gottpObj.Set("hmacSha256", func(call goja.FunctionCall) goja.Value {
+		message := call.Argument(0).String()
+		key := call.Argument(1).String()
+		mac := hmac.New(sha256.New, []byte(key))
+		mac.Write([]byte(message))
+		return vm.ToValue(hex.EncodeToString(mac.Sum(nil)))
+	})
+	gottpObj.Set("timestamp", func(call goja.FunctionCall) goja.Value {
+		return vm.ToValue(time.Now().Unix())
+	})
+	gottpObj.Set("timestampMs", func(call goja.FunctionCall) goja.Value {
+		return vm.ToValue(time.Now().UnixMilli())
+	})
+	gottpObj.Set("randomInt", func(call goja.FunctionCall) goja.Value {
+		min := int64(0)
+		max := int64(1000)
+		if len(call.Arguments) >= 2 {
+			min = call.Argument(0).ToInteger()
+			max = call.Argument(1).ToInteger()
+		} else if len(call.Arguments) == 1 {
+			max = call.Argument(0).ToInteger()
+		}
+		if max <= min {
+			return vm.ToValue(min)
+		}
+		return vm.ToValue(min + rand.Int63n(max-min))
+	})
+	gottpObj.Set("sleep", func(call goja.FunctionCall) goja.Value {
+		ms := call.Argument(0).ToInteger()
+		if ms > 0 && ms <= 10000 { // cap at 10s
+			time.Sleep(time.Duration(ms) * time.Millisecond)
+		}
+		return goja.Undefined()
+	})
+	gottpObj.Set("readFile", func(call goja.FunctionCall) goja.Value {
+		path := call.Argument(0).String()
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return goja.Undefined()
+		}
+		return vm.ToValue(string(data))
 	})
 
 	// Request/Response objects

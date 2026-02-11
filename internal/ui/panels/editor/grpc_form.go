@@ -409,13 +409,21 @@ func (m GRPCForm) View() string {
 						prefix = "> "
 						mtdStyle = m.styles.Cursor
 					}
-					b.WriteString(prefix + mtdStyle.Render(mtd.Name) + "\n")
+					label := mtd.Name
+					if tag := streamingTag(mtd); tag != "" {
+						label += " " + tag
+					}
+					b.WriteString(prefix + mtdStyle.Render(label) + "\n")
 				}
 			}
 		}
 	case GRPCTabRequest:
 		if m.method != "" {
-			b.WriteString(m.styles.Hint.Render("Method: "+m.method) + "\n\n")
+			methodLabel := "Method: " + m.method
+			if tag := m.selectedStreamingTag(); tag != "" {
+				methodLabel += " [" + tag + "]"
+			}
+			b.WriteString(m.styles.Hint.Render(methodLabel) + "\n\n")
 		}
 		b.WriteString(m.body.View())
 	case GRPCTabMetadata:
@@ -425,4 +433,41 @@ func (m GRPCForm) View() string {
 	}
 
 	return b.String()
+}
+
+// streamingTag returns a short label describing the streaming mode of a gRPC
+// method, or an empty string for unary methods.
+func streamingTag(mtd msgs.GRPCMethodInfo) string {
+	if mtd.IsClientStream && mtd.IsServerStream {
+		return "[Bidirectional]"
+	}
+	if mtd.IsServerStream {
+		return "[Server Streaming]"
+	}
+	if mtd.IsClientStream {
+		return "[Client Streaming]"
+	}
+	return ""
+}
+
+// selectedStreamingTag returns the streaming tag for the currently selected method.
+func (m GRPCForm) selectedStreamingTag() string {
+	if len(m.services) == 0 || m.svcIdx >= len(m.services) {
+		return ""
+	}
+	svc := m.services[m.svcIdx]
+	if m.mtdIdx >= len(svc.Methods) {
+		return ""
+	}
+	mtd := svc.Methods[m.mtdIdx]
+	if mtd.IsClientStream && mtd.IsServerStream {
+		return "Bidirectional"
+	}
+	if mtd.IsServerStream {
+		return "Server Streaming"
+	}
+	if mtd.IsClientStream {
+		return "Client Streaming"
+	}
+	return ""
 }

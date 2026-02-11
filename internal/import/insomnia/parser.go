@@ -76,17 +76,25 @@ func ParseInsomnia(data []byte) (*collection.Collection, error) {
 		Version: "1.0",
 	}
 
-	col.Items = buildItems(children, rootID)
+	col.Items = buildItems(children, rootID, nil)
 	return col, nil
 }
 
-func buildItems(children map[string][]insomniaResource, parentID string) []collection.Item {
+func buildItems(children map[string][]insomniaResource, parentID string, visited map[string]bool) []collection.Item {
+	if visited == nil {
+		visited = make(map[string]bool)
+	}
+	if visited[parentID] {
+		return nil // break cycles
+	}
+	visited[parentID] = true
+
 	var items []collection.Item
 	for _, r := range children[parentID] {
 		switch r.Type {
 		case "request_group":
 			folder := &collection.Folder{Name: r.Name}
-			folder.Items = buildItems(children, r.ID)
+			folder.Items = buildItems(children, r.ID, visited)
 			items = append(items, collection.Item{Folder: folder})
 		case "request":
 			req := &collection.Request{

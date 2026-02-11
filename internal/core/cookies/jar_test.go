@@ -3,6 +3,8 @@ package cookies
 import (
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -101,5 +103,67 @@ func TestJar_GetJar(t *testing.T) {
 	jar := New()
 	if jar.GetJar() == nil {
 		t.Error("GetJar() should not return nil")
+	}
+}
+
+func TestJar_SaveAndLoad(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "cookies.json")
+
+	// Create jar with cookies
+	jar1 := New()
+	u1, _ := url.Parse("https://example.com")
+	u2, _ := url.Parse("https://api.test.com")
+
+	jar1.SetCookies(u1, []*http.Cookie{
+		{Name: "session", Value: "abc123"},
+		{Name: "theme", Value: "dark"},
+	})
+	jar1.SetCookies(u2, []*http.Cookie{
+		{Name: "token", Value: "xyz789"},
+	})
+
+	// Save
+	if err := jar1.SaveToFile(path); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify file exists
+	if _, err := os.Stat(path); err != nil {
+		t.Fatal("cookie file should exist after save")
+	}
+
+	// Load into a new jar
+	jar2 := New()
+	if err := jar2.LoadFromFile(path); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify cookies were loaded
+	cookies := jar2.Cookies(u1)
+	if len(cookies) != 2 {
+		t.Fatalf("expected 2 cookies for example.com, got %d", len(cookies))
+	}
+
+	cookies2 := jar2.Cookies(u2)
+	if len(cookies2) != 1 {
+		t.Fatalf("expected 1 cookie for api.test.com, got %d", len(cookies2))
+	}
+
+	// Verify values
+	found := make(map[string]string)
+	for _, c := range cookies {
+		found[c.Name] = c.Value
+	}
+	if found["session"] != "abc123" {
+		t.Errorf("expected session=abc123, got %s", found["session"])
+	}
+}
+
+func TestJar_LoadNonExistent(t *testing.T) {
+	jar := New()
+	err := jar.LoadFromFile("/nonexistent/path/cookies.json")
+	if err != nil {
+		t.Error("loading non-existent file should return nil (no-op)")
 	}
 }

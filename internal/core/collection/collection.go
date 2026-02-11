@@ -9,6 +9,7 @@ type Collection struct {
 	Auth      *Auth             `yaml:"auth,omitempty"`
 	Variables map[string]string `yaml:"variables,omitempty"`
 	Items     []Item            `yaml:"items"`
+	Workflows []Workflow        `yaml:"workflows,omitempty"`
 }
 
 // Item is a union type: either a Folder or a Request.
@@ -66,12 +67,13 @@ type KVPair struct {
 
 // Auth represents authentication configuration.
 type Auth struct {
-	Type   string      `yaml:"type"` // none, basic, bearer, apikey, oauth2, awsv4
-	Basic  *BasicAuth  `yaml:"basic,omitempty"`
-	Bearer *BearerAuth `yaml:"bearer,omitempty"`
-	APIKey *APIKeyAuth `yaml:"apikey,omitempty"`
-	OAuth2 *OAuth2Auth `yaml:"oauth2,omitempty"`
-	AWSAuth *AWSAuth   `yaml:"awsv4,omitempty"`
+	Type    string      `yaml:"type"` // none, basic, bearer, apikey, oauth2, awsv4, digest
+	Basic   *BasicAuth  `yaml:"basic,omitempty"`
+	Bearer  *BearerAuth `yaml:"bearer,omitempty"`
+	APIKey  *APIKeyAuth `yaml:"apikey,omitempty"`
+	OAuth2  *OAuth2Auth `yaml:"oauth2,omitempty"`
+	AWSAuth *AWSAuth    `yaml:"awsv4,omitempty"`
+	Digest  *DigestAuth `yaml:"digest,omitempty"`
 }
 
 // BasicAuth holds basic auth credentials.
@@ -114,6 +116,12 @@ type AWSAuth struct {
 	Service        string `yaml:"service"`
 }
 
+// DigestAuth holds HTTP Digest auth credentials in collection files.
+type DigestAuth struct {
+	Username string `yaml:"username"`
+	Password string `yaml:"password"`
+}
+
 // Body represents a request body.
 type Body struct {
 	Type    string `yaml:"type"` // none, json, xml, text, form, multipart
@@ -143,6 +151,19 @@ type GRPCConfig struct {
 	Service  string   `yaml:"service"`
 	Method   string   `yaml:"method"`
 	Metadata []KVPair `yaml:"metadata,omitempty"`
+}
+
+// Workflow defines a sequence of requests to execute with data passing.
+type Workflow struct {
+	Name  string         `yaml:"name"`
+	Steps []WorkflowStep `yaml:"steps"`
+}
+
+// WorkflowStep is a single step in a workflow.
+type WorkflowStep struct {
+	Request    string              `yaml:"request"`              // request name to execute
+	Extracts   map[string]string   `yaml:"extracts,omitempty"`   // var_name: jsonpath or js expression
+	Condition  string              `yaml:"condition,omitempty"`  // JS expression that must be truthy to continue
 }
 
 // FlatItem represents a flattened tree item for display.
