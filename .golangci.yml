@@ -17,3 +17,7 @@ issues:
     - path: _test\.go
       linters:
         - errcheck
+    - path: internal/protocol/grpc/
+      text: "SA1019"
+      linters:
+        - staticcheck

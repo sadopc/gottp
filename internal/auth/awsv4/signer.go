@@ -12,11 +12,11 @@ import (
 
 // AWSConfig holds AWS credential and service information.
 type AWSConfig struct {
-	AccessKeyID    string
+	AccessKeyID     string
 	SecretAccessKey string
-	SessionToken   string
-	Region         string
-	Service        string
+	SessionToken    string
+	Region          string
+	Service         string
 }
 
 // Sign signs an HTTP request with AWS Signature Version 4.

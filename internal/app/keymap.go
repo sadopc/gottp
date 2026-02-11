@@ -5,14 +5,14 @@ import "github.com/charmbracelet/bubbles/key"
 // KeyMap defines all application keybindings.
 type KeyMap struct {
 	// Global
-	Quit          key.Binding
-	SendRequest   key.Binding
+	Quit           key.Binding
+	SendRequest    key.Binding
 	CommandPalette key.Binding
-	Help          key.Binding
-	NewRequest    key.Binding
-	CloseTab      key.Binding
-	SaveRequest   key.Binding
-	SwitchEnv     key.Binding
+	Help           key.Binding
+	NewRequest     key.Binding
+	CloseTab       key.Binding
+	SaveRequest    key.Binding
+	SwitchEnv      key.Binding
 
 	// Panel navigation
 	CycleFocus    key.Binding

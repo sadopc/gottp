@@ -90,9 +90,9 @@ func TestWindowSizeMsg_SetsReadyAndLayout(t *testing.T) {
 
 func TestWindowSizeMsg_ResponsiveBreakpoints(t *testing.T) {
 	tests := []struct {
-		name        string
-		width       int
-		singlePanel bool
+		name         string
+		width        int
+		singlePanel  bool
 		twoPanelMode bool
 	}{
 		{"single panel (narrow)", 50, true, false},
@@ -480,11 +480,11 @@ func TestOverlayPriority_Order(t *testing.T) {
 	a := testAppResized()
 
 	// Activate all overlays
-	a.activateJumpMode()      // sets jump.Visible = true
+	a.activateJumpMode()        // sets jump.Visible = true
 	a.modal.Show("T", "m", nil) // sets modal.Visible = true
 	a.help.SetSize(160, 40)
-	a.help.Toggle()              // sets help.Visible = true
-	a.commandPalette.Open()      // sets commandPalette.Visible = true
+	a.help.Toggle()         // sets help.Visible = true
+	a.commandPalette.Open() // sets commandPalette.Visible = true
 
 	if !a.commandPalette.Visible {
 		t.Fatal("command palette should be visible")
@@ -906,9 +906,9 @@ func TestFindRequest(t *testing.T) {
 
 func TestMessageRouting_TableDriven(t *testing.T) {
 	tests := []struct {
-		name   string
-		msg    tea.Msg
-		check  func(t *testing.T, a App, cmd tea.Cmd)
+		name  string
+		msg   tea.Msg
+		check func(t *testing.T, a App, cmd tea.Cmd)
 	}{
 		{
 			name: "NewRequestMsg adds a tab",
@@ -1008,12 +1008,9 @@ func TestMessageRouting_TableDriven(t *testing.T) {
 func TestCtrlEnter_SendsRequest(t *testing.T) {
 	a := testAppResized()
 
-	// Ctrl+Enter should trigger a SendRequestMsg via handleGlobalKey
-	cmd := a.handleGlobalKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'\r'}})
 	// ctrl+enter has a special string representation; test the direct path
-	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{}}
-	msg = tea.KeyMsg{Type: tea.KeyCtrlR}
-	cmd = a.handleGlobalKey(msg)
+	msg := tea.KeyMsg{Type: tea.KeyCtrlR}
+	cmd := a.handleGlobalKey(msg)
 	if cmd == nil {
 		t.Fatal("expected non-nil cmd for Ctrl+R")
 	}

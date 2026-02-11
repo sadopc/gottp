@@ -245,7 +245,6 @@ func (c *Client) Execute(ctx context.Context, req *protocol.Request) (*protocol.
 						resp.Body.Close()
 						resp = retryResp
 						duration = retryDuration
-						start = retryStart
 
 						transferStart = time.Now()
 						respBody, err = io.ReadAll(resp.Body)
