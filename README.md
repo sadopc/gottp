@@ -25,16 +25,23 @@ A Postman/Insomnia-like TUI API client built in Go.
 - **Syntax-highlighted responses** with JSON pretty-printing
 - **Response body search** — `/` or `Ctrl+F` to search, `n`/`N` to navigate matches
 - **Response cookies tab** — parsed `Set-Cookie` headers
+- **Performance waterfall** — DNS, TCP, TLS, TTFB, and transfer timing breakdown
 - **Response diffing** — set a baseline, compare subsequent responses with Myers diff
 - **Script console** — view pre/post-script logs and test results
 - **WebSocket message log** — color-coded sent/received messages
 
-### Collections & Import
+### Collections & Import/Export
 - **Collections** saved as readable `.gottp.yaml` files
 - **Environment variables** with `{{variable}}` interpolation and environment switching (Ctrl+E)
 - **Request history** — SQLite-backed, searchable, displayed in sidebar
 - **cURL import/export** — copy requests as curl, import from clipboard
+- **HAR import/export** — import from browser DevTools, export request/response pairs
 - **Import from Postman** (v2.1), **Insomnia** (v4), **OpenAPI** (3.0)
+
+### Networking
+- **Proxy support** — HTTP, HTTPS, and SOCKS5 proxies (global or per-request)
+- **Cookie jar** — automatic cookie handling across requests within a collection
+- **mTLS** — client certificate + key, CA bundles, skip TLS verification
 
 ### Navigation & Themes
 - **Vim-style modal editing** — Normal/Insert/Jump/Search modes, j/k navigation
@@ -43,6 +50,12 @@ A Postman/Insomnia-like TUI API client built in Go.
 - **8 built-in themes** — Catppuccin (Mocha, Latte, Frappe, Macchiato), Nord, Dracula, Gruvbox, Tokyo Night
 - **Custom themes** — load YAML theme files from `~/.config/gottp/themes/`
 - **Responsive layout** — adapts from single-panel to three-panel based on terminal width
+
+### CLI Mode (Headless)
+- **`gottp run`** — run requests from the terminal without the TUI
+- **CI/CD integration** — JSON and JUnit XML output formats
+- **Scripting in CI** — pre/post-request scripts execute in CLI mode too
+- **Exit codes** — 0 = all pass, 1 = test assertion failure, 2 = request error
 
 ## Install
 
@@ -61,12 +74,39 @@ make build
 
 ## Usage
 
+### TUI Mode (Interactive)
+
 ```bash
 # Launch with auto-discovered collection in current directory
 gottp
 
 # Launch with a specific collection
 gottp --collection my-api.gottp.yaml
+```
+
+### CLI Mode (Headless)
+
+```bash
+# Run all requests in a collection
+gottp run api.gottp.yaml
+
+# Run a single request by name
+gottp run api.gottp.yaml --request "Get Users"
+
+# Run all requests in a folder
+gottp run api.gottp.yaml --folder "Auth"
+
+# Use a specific environment
+gottp run api.gottp.yaml --env Production
+
+# JSON output for scripting
+gottp run api.gottp.yaml --output json
+
+# JUnit XML for CI pipelines
+gottp run api.gottp.yaml --output junit > results.xml
+
+# Verbose output with response bodies
+gottp run api.gottp.yaml --verbose
 ```
 
 ### Key Bindings
@@ -170,6 +210,31 @@ environments:
 
 Use `{{variable}}` syntax in URLs, headers, params, and body. Switch environments with `Ctrl+E` or the command palette.
 
+## Configuration
+
+App config lives at `~/.config/gottp/config.yaml`:
+
+```yaml
+theme: catppuccin-mocha
+vim_mode: true
+default_timeout: 30s
+editor: ""           # defaults to $EDITOR
+script_timeout: 5s
+
+# Proxy (HTTP/HTTPS/SOCKS5)
+proxy_url: "http://proxy.example.com:8080"
+no_proxy: "localhost,127.0.0.1"
+
+# mTLS
+tls:
+  cert_file: "/path/to/client.pem"
+  key_file: "/path/to/client-key.pem"
+  ca_file: "/path/to/ca.pem"
+  insecure_skip_verify: false
+```
+
+Proxy and TLS settings can also be overridden per-request in collection YAML. The HTTP client respects `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` environment variables as fallback.
+
 ## Pre/Post-Request Scripting
 
 Add JavaScript scripts to requests. Pre-scripts can modify the request before it's sent; post-scripts can assert on the response.
@@ -226,9 +291,15 @@ Custom themes can be added as YAML files in `~/.config/gottp/themes/`.
 - [x] WebSocket support (connect/send/receive, message log)
 - [x] gRPC support (server reflection, dynamic unary calls)
 - [x] Pre/post-request scripting (JavaScript)
+- [x] CLI mode (`gottp run` for headless/CI execution)
+- [x] HAR import/export
+- [x] Performance waterfall (DNS/TCP/TLS/TTFB/Transfer timing)
+- [x] Proxy support (HTTP/HTTPS/SOCKS5)
+- [x] Cookie jar (automatic cookie handling)
+- [x] Certificate management (mTLS)
+- [x] CI/CD pipeline (GitHub Actions + GoReleaser)
 - [ ] Streaming gRPC (server/client/bidi)
 - [ ] GraphQL subscriptions
-- [ ] Certificate management (mTLS)
 - [ ] Request chaining / workflows
 
 ## License

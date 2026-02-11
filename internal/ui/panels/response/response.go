@@ -76,7 +76,7 @@ func New(t theme.Theme, s theme.Styles) Model {
 		body:    NewBodyModel(s),
 		headers: NewHeadersModel(s),
 		cookies: NewCookiesModel(s),
-		timing:  NewTimingModel(s),
+		timing:  NewTimingModel(t, s),
 		diff:    NewDiffModel(t, s),
 		console: NewConsoleModel(t, s),
 		wslog:   NewWSLogModel(t, s),

@@ -6,7 +6,7 @@ LDFLAGS  = -s -w \
 	-X github.com/serdar/gottp/pkg/version.Commit=$(COMMIT) \
 	-X github.com/serdar/gottp/pkg/version.Date=$(DATE)
 
-.PHONY: build run test lint clean install
+.PHONY: build run test lint clean install release-dry-run
 
 build:
 	@mkdir -p bin
@@ -29,3 +29,6 @@ clean:
 
 install:
 	go install -ldflags "$(LDFLAGS)" ./cmd/gottp
+
+release-dry-run:
+	goreleaser release --snapshot --clean

@@ -3,20 +3,35 @@ package http
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/base64"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/http/httptrace"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/serdar/gottp/internal/auth/awsv4"
+	"github.com/serdar/gottp/internal/core/cookies"
 	"github.com/serdar/gottp/internal/protocol"
+	"golang.org/x/net/proxy"
 )
+
+// ProxyConfig holds proxy settings.
+type ProxyConfig struct {
+	URL     string // http://, https://, or socks5:// proxy URL
+	NoProxy string // comma-separated list of hosts to bypass proxy
+}
 
 // Client implements the HTTP protocol.
 type Client struct {
 	httpClient *http.Client
+	proxyConf  *ProxyConfig
+	cookieJar  *cookies.Jar
+	tlsConfig  *tls.Config
 }
 
 // New creates a new HTTP client.
@@ -37,6 +52,25 @@ func New() *Client {
 // SetTimeout sets the default client timeout.
 func (c *Client) SetTimeout(d time.Duration) {
 	c.httpClient.Timeout = d
+}
+
+// SetProxy configures proxy settings for the client.
+func (c *Client) SetProxy(proxyURL, noProxy string) {
+	if proxyURL == "" {
+		c.proxyConf = nil
+		return
+	}
+	c.proxyConf = &ProxyConfig{URL: proxyURL, NoProxy: noProxy}
+}
+
+// SetCookieJar sets the cookie jar for automatic cookie handling.
+func (c *Client) SetCookieJar(jar *cookies.Jar) {
+	c.cookieJar = jar
+}
+
+// SetTLSConfig sets the TLS configuration for mTLS and certificate management.
+func (c *Client) SetTLSConfig(cfg *tls.Config) {
+	c.tlsConfig = cfg
 }
 
 func (c *Client) Name() string { return "http" }
@@ -99,11 +133,55 @@ func (c *Client) Execute(ctx context.Context, req *protocol.Request) (*protocol.
 		timeout = 30 * time.Second
 	}
 
+	// Build transport with proxy and TLS settings
+	transport, err := c.buildTransport(req.ProxyURL)
+	if err != nil {
+		return nil, fmt.Errorf("configuring transport: %w", err)
+	}
+
 	client := &http.Client{
 		Timeout:       timeout,
 		CheckRedirect: c.httpClient.CheckRedirect,
-		Transport:     c.httpClient.Transport,
+		Transport:     transport,
 	}
+
+	// Set cookie jar if configured
+	if c.cookieJar != nil {
+		client.Jar = c.cookieJar.GetJar()
+	}
+
+	// Set up httptrace for detailed timing
+	var dnsStart, connStart, tlsStart, gotConn, gotFirstByte time.Time
+	var dnsDuration, connDuration, tlsDuration time.Duration
+
+	trace := &httptrace.ClientTrace{
+		DNSStart: func(_ httptrace.DNSStartInfo) {
+			dnsStart = time.Now()
+		},
+		DNSDone: func(_ httptrace.DNSDoneInfo) {
+			dnsDuration = time.Since(dnsStart)
+		},
+		ConnectStart: func(_, _ string) {
+			connStart = time.Now()
+		},
+		ConnectDone: func(_, _ string, _ error) {
+			connDuration = time.Since(connStart)
+		},
+		TLSHandshakeStart: func() {
+			tlsStart = time.Now()
+		},
+		TLSHandshakeDone: func(_ tls.ConnectionState, _ error) {
+			tlsDuration = time.Since(tlsStart)
+		},
+		GotConn: func(_ httptrace.GotConnInfo) {
+			gotConn = time.Now()
+		},
+		GotFirstResponseByte: func() {
+			gotFirstByte = time.Now()
+		},
+	}
+
+	httpReq = httpReq.WithContext(httptrace.WithClientTrace(httpReq.Context(), trace))
 
 	// Execute
 	start := time.Now()
@@ -115,9 +193,26 @@ func (c *Client) Execute(ctx context.Context, req *protocol.Request) (*protocol.
 	defer resp.Body.Close()
 
 	// Read body
+	transferStart := time.Now()
 	respBody, err := io.ReadAll(resp.Body)
+	transferDuration := time.Since(transferStart)
 	if err != nil {
 		return nil, fmt.Errorf("reading response: %w", err)
+	}
+
+	// Build timing detail
+	var ttfb time.Duration
+	if !gotConn.IsZero() && !gotFirstByte.IsZero() {
+		ttfb = gotFirstByte.Sub(gotConn)
+	}
+
+	timing := &protocol.TimingDetail{
+		DNSLookup:    dnsDuration,
+		TCPConnect:   connDuration,
+		TLSHandshake: tlsDuration,
+		TTFB:         ttfb,
+		Transfer:     transferDuration,
+		Total:        duration,
 	}
 
 	return &protocol.Response{
@@ -130,7 +225,104 @@ func (c *Client) Execute(ctx context.Context, req *protocol.Request) (*protocol.
 		Size:        int64(len(respBody)),
 		Proto:       resp.Proto,
 		TLS:         resp.TLS != nil,
+		Timing:      timing,
 	}, nil
+}
+
+// buildTransport creates an http.Transport configured with proxy and TLS settings.
+// perRequestProxy overrides the client-level proxy config if non-empty.
+func (c *Client) buildTransport(perRequestProxy string) (http.RoundTripper, error) {
+	transport := &http.Transport{
+		// Sensible defaults
+		MaxIdleConns:        100,
+		IdleConnTimeout:     90 * time.Second,
+		TLSHandshakeTimeout: 10 * time.Second,
+	}
+
+	// Apply TLS config
+	if c.tlsConfig != nil {
+		transport.TLSClientConfig = c.tlsConfig
+	}
+
+	// Determine effective proxy URL (per-request overrides global)
+	proxyURL := perRequestProxy
+	noProxy := ""
+	if proxyURL == "" && c.proxyConf != nil {
+		proxyURL = c.proxyConf.URL
+		noProxy = c.proxyConf.NoProxy
+	}
+
+	if proxyURL != "" {
+		parsed, err := url.Parse(proxyURL)
+		if err != nil {
+			return nil, fmt.Errorf("parsing proxy URL: %w", err)
+		}
+
+		switch parsed.Scheme {
+		case "socks5", "socks5h":
+			// SOCKS5 proxy via x/net/proxy
+			var auth *proxy.Auth
+			if parsed.User != nil {
+				password, _ := parsed.User.Password()
+				auth = &proxy.Auth{
+					User:     parsed.User.Username(),
+					Password: password,
+				}
+			}
+			dialer, err := proxy.SOCKS5("tcp", parsed.Host, auth, proxy.Direct)
+			if err != nil {
+				return nil, fmt.Errorf("creating SOCKS5 dialer: %w", err)
+			}
+			transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+				return dialer.Dial(network, addr)
+			}
+		case "http", "https":
+			// HTTP/HTTPS proxy
+			if noProxy != "" {
+				noProxyHosts := parseNoProxy(noProxy)
+				transport.Proxy = func(r *http.Request) (*url.URL, error) {
+					if shouldBypassProxy(r.URL.Hostname(), noProxyHosts) {
+						return nil, nil
+					}
+					return parsed, nil
+				}
+			} else {
+				transport.Proxy = http.ProxyURL(parsed)
+			}
+		default:
+			return nil, fmt.Errorf("unsupported proxy scheme: %s", parsed.Scheme)
+		}
+	}
+
+	return transport, nil
+}
+
+// parseNoProxy splits a comma-separated no-proxy string into trimmed host entries.
+func parseNoProxy(noProxy string) []string {
+	parts := strings.Split(noProxy, ",")
+	hosts := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			hosts = append(hosts, strings.ToLower(p))
+		}
+	}
+	return hosts
+}
+
+// shouldBypassProxy checks whether a host should bypass the proxy.
+func shouldBypassProxy(host string, noProxyHosts []string) bool {
+	host = strings.ToLower(host)
+	for _, h := range noProxyHosts {
+		if h == host {
+			return true
+		}
+		// Support wildcard suffix matching (e.g., .example.com)
+		if strings.HasPrefix(h, ".") && strings.HasSuffix(host, h) {
+			return true
+		}
+	}
+	return false
 }
 
 func applyAuth(req *http.Request, auth *protocol.AuthConfig, body []byte) {

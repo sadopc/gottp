@@ -39,6 +39,9 @@ type Request struct {
 
 	// Timeout
 	Timeout time.Duration
+
+	// Proxy
+	ProxyURL string
 }
 
 // AuthConfig holds authentication settings.
@@ -83,6 +86,16 @@ type AWSAuthConfig struct {
 	Service        string
 }
 
+// TimingDetail holds detailed timing breakdown for a request.
+type TimingDetail struct {
+	DNSLookup    time.Duration `json:"dns_lookup"`
+	TCPConnect   time.Duration `json:"tcp_connect"`
+	TLSHandshake time.Duration `json:"tls_handshake"`
+	TTFB         time.Duration `json:"ttfb"`     // Time to first byte (server processing)
+	Transfer     time.Duration `json:"transfer"` // Response body transfer
+	Total        time.Duration `json:"total"`
+}
+
 // Response is the unified response type.
 type Response struct {
 	StatusCode  int
@@ -94,4 +107,5 @@ type Response struct {
 	Size        int64
 	Proto       string
 	TLS         bool
+	Timing      *TimingDetail
 }

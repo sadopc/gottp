@@ -42,6 +42,8 @@ type Request struct {
 
 	PreScript  string `yaml:"pre_script,omitempty"`
 	PostScript string `yaml:"post_script,omitempty"`
+
+	ProxyURL string `yaml:"proxy_url,omitempty"`
 }
 
 // NewRequest creates a new request with defaults.

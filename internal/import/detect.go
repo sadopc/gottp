@@ -30,6 +30,15 @@ func DetectFormat(data []byte) string {
 				return "insomnia"
 			}
 		}
+		// HAR: has "log" with "entries" inside
+		if logRaw, ok := obj["log"]; ok {
+			var logObj map[string]json.RawMessage
+			if json.Unmarshal(logRaw, &logObj) == nil {
+				if _, ok := logObj["entries"]; ok {
+					return "har"
+				}
+			}
+		}
 		// OpenAPI JSON: has "openapi" field
 		if _, ok := obj["openapi"]; ok {
 			return "openapi"
