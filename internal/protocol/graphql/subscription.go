@@ -94,7 +94,7 @@ func (c *SubscriptionClient) Connect(ctx context.Context, url string, headers ma
 		Payload: json.RawMessage(`{}`),
 	}
 	if err := c.writeJSON(ctx, initMsg); err != nil {
-		conn.CloseNow()
+		_ = conn.CloseNow()
 		c.mu.Lock()
 		c.conn = nil
 		c.mu.Unlock()
@@ -103,7 +103,7 @@ func (c *SubscriptionClient) Connect(ctx context.Context, url string, headers ma
 
 	// Wait for connection_ack.
 	if err := c.waitForAck(ctx); err != nil {
-		conn.CloseNow()
+		_ = conn.CloseNow()
 		c.mu.Lock()
 		c.conn = nil
 		c.mu.Unlock()

@@ -49,14 +49,14 @@ func (a *ScriptAPI) registerOnRuntime(vm *goja.Runtime) {
 	gottpObj := vm.NewObject()
 
 	// Environment variables
-	gottpObj.Set("setEnvVar", func(call goja.FunctionCall) goja.Value {
+	_ = gottpObj.Set("setEnvVar", func(call goja.FunctionCall) goja.Value {
 		key := call.Argument(0).String()
 		value := call.Argument(1).String()
 		a.envVars[key] = value
 		a.envChanges[key] = value
 		return goja.Undefined()
 	})
-	gottpObj.Set("getEnvVar", func(call goja.FunctionCall) goja.Value {
+	_ = gottpObj.Set("getEnvVar", func(call goja.FunctionCall) goja.Value {
 		key := call.Argument(0).String()
 		if v, ok := a.envVars[key]; ok {
 			return vm.ToValue(v)
@@ -65,7 +65,7 @@ func (a *ScriptAPI) registerOnRuntime(vm *goja.Runtime) {
 	})
 
 	// Logging
-	gottpObj.Set("log", func(call goja.FunctionCall) goja.Value {
+	_ = gottpObj.Set("log", func(call goja.FunctionCall) goja.Value {
 		args := make([]interface{}, len(call.Arguments))
 		for i, arg := range call.Arguments {
 			args[i] = arg.Export()
@@ -75,7 +75,7 @@ func (a *ScriptAPI) registerOnRuntime(vm *goja.Runtime) {
 	})
 
 	// Testing
-	gottpObj.Set("test", func(call goja.FunctionCall) goja.Value {
+	_ = gottpObj.Set("test", func(call goja.FunctionCall) goja.Value {
 		name := call.Argument(0).String()
 		fn, ok := goja.AssertFunction(call.Argument(1))
 		if !ok {
@@ -93,7 +93,7 @@ func (a *ScriptAPI) registerOnRuntime(vm *goja.Runtime) {
 		return goja.Undefined()
 	})
 
-	gottpObj.Set("assert", func(call goja.FunctionCall) goja.Value {
+	_ = gottpObj.Set("assert", func(call goja.FunctionCall) goja.Value {
 		val := call.Argument(0).ToBoolean()
 		if !val {
 			msg := "assertion failed"
@@ -106,41 +106,41 @@ func (a *ScriptAPI) registerOnRuntime(vm *goja.Runtime) {
 	})
 
 	// Utility functions
-	gottpObj.Set("base64encode", func(call goja.FunctionCall) goja.Value {
+	_ = gottpObj.Set("base64encode", func(call goja.FunctionCall) goja.Value {
 		return vm.ToValue(base64.StdEncoding.EncodeToString([]byte(call.Argument(0).String())))
 	})
-	gottpObj.Set("base64decode", func(call goja.FunctionCall) goja.Value {
+	_ = gottpObj.Set("base64decode", func(call goja.FunctionCall) goja.Value {
 		decoded, err := base64.StdEncoding.DecodeString(call.Argument(0).String())
 		if err != nil {
 			return vm.ToValue("")
 		}
 		return vm.ToValue(string(decoded))
 	})
-	gottpObj.Set("sha256", func(call goja.FunctionCall) goja.Value {
+	_ = gottpObj.Set("sha256", func(call goja.FunctionCall) goja.Value {
 		h := sha256.Sum256([]byte(call.Argument(0).String()))
 		return vm.ToValue(hex.EncodeToString(h[:]))
 	})
-	gottpObj.Set("uuid", func(call goja.FunctionCall) goja.Value {
+	_ = gottpObj.Set("uuid", func(call goja.FunctionCall) goja.Value {
 		return vm.ToValue(uuid.New().String())
 	})
-	gottpObj.Set("md5", func(call goja.FunctionCall) goja.Value {
+	_ = gottpObj.Set("md5", func(call goja.FunctionCall) goja.Value {
 		h := md5.Sum([]byte(call.Argument(0).String()))
 		return vm.ToValue(hex.EncodeToString(h[:]))
 	})
-	gottpObj.Set("hmacSha256", func(call goja.FunctionCall) goja.Value {
+	_ = gottpObj.Set("hmacSha256", func(call goja.FunctionCall) goja.Value {
 		message := call.Argument(0).String()
 		key := call.Argument(1).String()
 		mac := hmac.New(sha256.New, []byte(key))
 		mac.Write([]byte(message))
 		return vm.ToValue(hex.EncodeToString(mac.Sum(nil)))
 	})
-	gottpObj.Set("timestamp", func(call goja.FunctionCall) goja.Value {
+	_ = gottpObj.Set("timestamp", func(call goja.FunctionCall) goja.Value {
 		return vm.ToValue(time.Now().Unix())
 	})
-	gottpObj.Set("timestampMs", func(call goja.FunctionCall) goja.Value {
+	_ = gottpObj.Set("timestampMs", func(call goja.FunctionCall) goja.Value {
 		return vm.ToValue(time.Now().UnixMilli())
 	})
-	gottpObj.Set("randomInt", func(call goja.FunctionCall) goja.Value {
+	_ = gottpObj.Set("randomInt", func(call goja.FunctionCall) goja.Value {
 		min := int64(0)
 		max := int64(1000)
 		if len(call.Arguments) >= 2 {
@@ -154,14 +154,14 @@ func (a *ScriptAPI) registerOnRuntime(vm *goja.Runtime) {
 		}
 		return vm.ToValue(min + rand.Int63n(max-min))
 	})
-	gottpObj.Set("sleep", func(call goja.FunctionCall) goja.Value {
+	_ = gottpObj.Set("sleep", func(call goja.FunctionCall) goja.Value {
 		ms := call.Argument(0).ToInteger()
 		if ms > 0 && ms <= 10000 { // cap at 10s
 			time.Sleep(time.Duration(ms) * time.Millisecond)
 		}
 		return goja.Undefined()
 	})
-	gottpObj.Set("readFile", func(call goja.FunctionCall) goja.Value {
+	_ = gottpObj.Set("readFile", func(call goja.FunctionCall) goja.Value {
 		path := call.Argument(0).String()
 		data, err := os.ReadFile(path)
 		if err != nil {
@@ -171,8 +171,8 @@ func (a *ScriptAPI) registerOnRuntime(vm *goja.Runtime) {
 	})
 
 	// Request/Response objects
-	gottpObj.Set("request", a.request)
-	gottpObj.Set("response", a.response)
+	_ = gottpObj.Set("request", a.request)
+	_ = gottpObj.Set("response", a.response)
 
-	vm.Set("gottp", gottpObj)
+	_ = vm.Set("gottp", gottpObj)
 }

@@ -48,13 +48,13 @@ func StartCallbackServer(ctx context.Context) (code string, port int, err error)
 
 	select {
 	case code = <-codeCh:
-		server.Shutdown(context.Background())
+		_ = server.Shutdown(context.Background())
 		return code, port, nil
 	case err = <-errCh:
-		server.Shutdown(context.Background())
+		_ = server.Shutdown(context.Background())
 		return "", port, err
 	case <-ctx.Done():
-		server.Shutdown(context.Background())
+		_ = server.Shutdown(context.Background())
 		return "", port, ctx.Err()
 	}
 }

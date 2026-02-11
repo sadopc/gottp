@@ -21,8 +21,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.25.x"
-          cache: true
+          go-version-file: 'go.mod'
 
       - name: Run tests
         run: go test ./...
@@ -60,8 +59,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.25.x"
-          cache: true
+          go-version-file: 'go.mod'
 
       - uses: golangci/golangci-lint-action@v6
         with:
@@ -76,8 +74,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.25.x"
-          cache: true
+          go-version-file: 'go.mod'
 
       - name: Install govulncheck
         run: go install golang.org/x/vuln/cmd/govulncheck@latest
@@ -93,8 +90,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.25.x"
-          cache: true
+          go-version-file: 'go.mod'
 
       - name: Fuzz import parsers (30s each)
         run: |
@@ -133,8 +129,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.25.x"
-          cache: true
+          go-version-file: 'go.mod'
 
       - name: Build
         env:

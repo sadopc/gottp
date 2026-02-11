@@ -418,7 +418,7 @@ func applyAuth(req *http.Request, auth *protocol.AuthConfig, body []byte) {
 				Region:         auth.AWSAuth.Region,
 				Service:        auth.AWSAuth.Service,
 			}
-			awsv4.Sign(req, body, cfg, time.Now())
+			_ = awsv4.Sign(req, body, cfg, time.Now())
 		}
 	}
 }
