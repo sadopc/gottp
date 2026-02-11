@@ -15,11 +15,10 @@ var authTypes = []string{"none", "basic", "bearer", "apikey", "oauth2", "awsv4",
 
 // AuthSection manages auth configuration with type selector and field inputs.
 type AuthSection struct {
-	authType    string // none, basic, bearer, apikey, oauth2, awsv4
-	typeIndex   int
-	cursor      int // 0=type, 1+=fields
-	editing     bool
-	activeInput int // which input is active for editing
+	authType  string // none, basic, bearer, apikey, oauth2, awsv4
+	typeIndex int
+	cursor    int // 0=type, 1+=fields
+	editing   bool
 
 	// Basic auth
 	username textinput.Model
@@ -173,11 +172,11 @@ func (m AuthSection) BuildAuth() *protocol.AuthConfig {
 		return &protocol.AuthConfig{
 			Type: "awsv4",
 			AWSAuth: &protocol.AWSAuthConfig{
-				AccessKeyID:    m.awsAccessKey.Value(),
+				AccessKeyID:     m.awsAccessKey.Value(),
 				SecretAccessKey: m.awsSecretKey.Value(),
-				SessionToken:   m.awsSessionToken.Value(),
-				Region:         m.awsRegion.Value(),
-				Service:        m.awsService.Value(),
+				SessionToken:    m.awsSessionToken.Value(),
+				Region:          m.awsRegion.Value(),
+				Service:         m.awsService.Value(),
 			},
 		}
 	case "digest":

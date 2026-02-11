@@ -125,7 +125,7 @@ func New(col *collection.Collection, colPath string, cfg config.Config) App {
 	// Init history store
 	var histStore *history.Store
 	dataDir := filepath.Join(os.Getenv("HOME"), ".local", "share", "gottp")
-	os.MkdirAll(dataDir, 0755)
+	_ = os.MkdirAll(dataDir, 0755)
 	if hs, err := history.NewStore(filepath.Join(dataDir, "history.db")); err == nil {
 		histStore = hs
 	}

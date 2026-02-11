@@ -141,7 +141,7 @@ func jsonPathExtract(body []byte, path string) string {
 			field := part[:idx]
 			indexStr := strings.TrimSuffix(part[idx+1:], "]")
 			var arrayIdx int
-			fmt.Sscanf(indexStr, "%d", &arrayIdx)
+			_, _ = fmt.Sscanf(indexStr, "%d", &arrayIdx)
 
 			obj, ok := current.(map[string]interface{})
 			if !ok {
@@ -194,7 +194,7 @@ func evaluateCondition(condition string, result Result) bool {
 		if len(parts) == 3 {
 			op := parts[1]
 			var expected int
-			fmt.Sscanf(parts[2], "%d", &expected)
+			_, _ = fmt.Sscanf(parts[2], "%d", &expected)
 			actual := result.StatusCode
 
 			switch op {

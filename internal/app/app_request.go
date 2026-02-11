@@ -307,7 +307,7 @@ func (a App) handleRequestSent(msg msgs.RequestSentMsg) (tea.Model, tea.Cmd) {
 	if a.history != nil {
 		req := a.editor.BuildRequest()
 		headersJSON, _ := json.Marshal(req.Headers)
-		a.history.Add(history.Entry{
+		_, _ = a.history.Add(history.Entry{
 			Method:       req.Method,
 			URL:          req.URL,
 			StatusCode:   msg.StatusCode,

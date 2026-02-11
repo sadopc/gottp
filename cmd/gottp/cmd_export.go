@@ -156,7 +156,7 @@ func exportAsHAR(out *os.File, requests []*collection.Request) {
 
 	enc := json.NewEncoder(out)
 	enc.SetIndent("", "  ")
-	enc.Encode(combined)
+	_ = enc.Encode(combined)
 }
 
 func exportAsPostman(out *os.File, col *collection.Collection) {
@@ -165,7 +165,7 @@ func exportAsPostman(out *os.File, col *collection.Collection) {
 		fmt.Fprintf(os.Stderr, "Error exporting to Postman: %v\n", err)
 		os.Exit(1)
 	}
-	out.Write(data)
+	_, _ = out.Write(data)
 	fmt.Fprintln(out)
 }
 
@@ -175,7 +175,7 @@ func exportAsInsomnia(out *os.File, col *collection.Collection) {
 		fmt.Fprintf(os.Stderr, "Error exporting to Insomnia: %v\n", err)
 		os.Exit(1)
 	}
-	out.Write(data)
+	_, _ = out.Write(data)
 	fmt.Fprintln(out)
 }
 

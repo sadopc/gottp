@@ -3,7 +3,6 @@ package insomnia
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/google/uuid"
 	"github.com/serdar/gottp/internal/core/collection"
@@ -162,16 +161,4 @@ func exportAuth(auth *collection.Auth) *insomniaAuth {
 	return nil
 }
 
-// bodyTypeToMime converts gottp body type to MIME type string.
-func bodyTypeToMime(bodyType string) string {
-	switch strings.ToLower(bodyType) {
-	case "json":
-		return "application/json"
-	case "xml":
-		return "application/xml"
-	case "form":
-		return "application/x-www-form-urlencoded"
-	default:
-		return "text/plain"
-	}
-}
+

@@ -168,7 +168,7 @@ func (a App) openExternalEditor() (tea.Model, tea.Cmd) {
 
 	bodyContent := a.editor.GetBodyContent()
 	if bodyContent != "" {
-		tmpFile.WriteString(bodyContent)
+		_, _ = tmpFile.WriteString(bodyContent)
 	}
 	tmpPath := tmpFile.Name()
 	tmpFile.Close()
