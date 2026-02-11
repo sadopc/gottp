@@ -1,7 +1,7 @@
 # Build output
 bin/
 dist/
-gottp
+/gottp
 
 # Go
 *.exe
@@ -26,3 +26,6 @@ Thumbs.db
 
 # Config (may contain secrets)
 *.env
+
+# AI agent files
+AGENTS.md
