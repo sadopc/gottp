@@ -3,6 +3,8 @@ package msgs
 import (
 	"net/http"
 	"time"
+
+	"github.com/serdar/gottp/internal/core/collection"
 )
 
 // Panel focus targets
@@ -71,6 +73,10 @@ type RequestSentMsg struct {
 	Duration    time.Duration
 	Size        int64
 	Err         error
+
+	// Post-script results (attached if script ran)
+	ScriptResult *ScriptResultMsg
+	ScriptErr    *string
 }
 
 // NewRequestMsg opens a new empty request tab.
@@ -147,4 +153,149 @@ type EditorDoneMsg struct {
 // HistorySelectedMsg is emitted when a history entry is selected.
 type HistorySelectedMsg struct {
 	ID int64
+}
+
+// --- Phase 3A: Theme switching ---
+
+// SwitchThemeMsg requests switching to a named theme.
+type SwitchThemeMsg struct {
+	Name string
+}
+
+// --- Phase 3B: OAuth2 ---
+
+// OAuth2TokenMsg is emitted when an OAuth2 token is acquired.
+type OAuth2TokenMsg struct {
+	AccessToken  string
+	RefreshToken string
+	ExpiresIn    int
+	Err          error
+}
+
+// OAuth2BrowserMsg requests opening the browser for OAuth2 auth code flow.
+type OAuth2BrowserMsg struct {
+	URL string
+}
+
+// --- Phase 3D: Importers ---
+
+// ImportFileMsg triggers importing a collection from a file path.
+type ImportFileMsg struct {
+	Path string
+}
+
+// ImportCompleteMsg is emitted when an import finishes.
+type ImportCompleteMsg struct {
+	Collection *collection.Collection
+	Err        error
+}
+
+// --- Phase 3E: Response Diffing ---
+
+// SetBaselineMsg saves the current response body as the diff baseline.
+type SetBaselineMsg struct{}
+
+// ClearBaselineMsg removes the saved diff baseline.
+type ClearBaselineMsg struct{}
+
+// --- Phase 4: Multi-Protocol ---
+
+// SwitchProtocolMsg requests switching the editor protocol form.
+type SwitchProtocolMsg struct {
+	Protocol string
+}
+
+// IntrospectMsg triggers GraphQL introspection.
+type IntrospectMsg struct{}
+
+// IntrospectionResultMsg carries GraphQL introspection results.
+type IntrospectionResultMsg struct {
+	Types []SchemaType
+	Err   error
+}
+
+// SchemaType is a simplified GraphQL type for display.
+type SchemaType struct {
+	Name   string
+	Fields []SchemaField
+}
+
+// SchemaField is a simplified GraphQL field for display.
+type SchemaField struct {
+	Name string
+	Type string
+}
+
+// --- Phase 5: WebSocket ---
+
+// WSConnectMsg requests a WebSocket connection.
+type WSConnectMsg struct{}
+
+// WSDisconnectMsg requests disconnecting WebSocket.
+type WSDisconnectMsg struct{}
+
+// WSSendMsg sends a message over WebSocket.
+type WSSendMsg struct {
+	Content string
+}
+
+// WSConnectedMsg is emitted when WebSocket connects.
+type WSConnectedMsg struct {
+	Err error
+}
+
+// WSDisconnectedMsg is emitted when WebSocket disconnects.
+type WSDisconnectedMsg struct {
+	Err error
+}
+
+// WSMessageReceivedMsg is emitted when a WebSocket message arrives.
+type WSMessageReceivedMsg struct {
+	Content   string
+	IsJSON    bool
+	Timestamp time.Time
+}
+
+// --- Phase 6: gRPC ---
+
+// GRPCReflectMsg triggers gRPC server reflection.
+type GRPCReflectMsg struct{}
+
+// GRPCReflectionResultMsg carries gRPC reflection results.
+type GRPCReflectionResultMsg struct {
+	Services []GRPCServiceInfo
+	Err      error
+}
+
+// GRPCServiceInfo holds discovered gRPC service metadata.
+type GRPCServiceInfo struct {
+	Name    string
+	Methods []GRPCMethodInfo
+}
+
+// GRPCMethodInfo holds discovered gRPC method metadata.
+type GRPCMethodInfo struct {
+	Name           string
+	FullName       string
+	InputType      string
+	OutputType     string
+	IsClientStream bool
+	IsServerStream bool
+}
+
+// --- Phase 7: Scripting ---
+
+// ScriptResultMsg carries script execution results.
+type ScriptResultMsg struct {
+	Logs        []string
+	TestResults []ScriptTestResult
+	EnvChanges  map[string]string
+	Err         error
+}
+
+// ScriptTestResult holds a single test assertion result.
+type ScriptTestResult struct {
+	Name   string
+	Passed bool
+	Error  string
 }

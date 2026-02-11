@@ -19,28 +19,51 @@ const (
 	tabHeaders
 	tabCookies
 	tabTiming
+	tabDiff
+	tabConsole
 )
 
-var subTabLabels = []string{"Body", "Headers", "Cookies", "Timing"}
+// responseMode determines which tab set to show.
+type responseMode int
 
-// Model is the response panel container wrapping body, headers, cookies, and timing.
+const (
+	modeHTTP responseMode = iota
+	modeWebSocket
+)
+
+var httpTabLabels = []string{"Body", "Headers", "Cookies", "Timing", "Diff", "Console"}
+var wsTabLabels = []string{"Messages", "Headers", "Timing"}
+
+// ws-specific tabs
+const (
+	wsTabMessages subTab = 0
+	wsTabHeaders  subTab = 1
+	wsTabTiming   subTab = 2
+)
+
+// Model is the response panel container wrapping body, headers, cookies, timing, diff, console, and WS log.
 type Model struct {
 	body    BodyModel
 	headers HeadersModel
 	cookies CookiesModel
 	timing  TimingModel
+	diff    DiffModel
+	console ConsoleModel
+	wslog   WSLogModel
 	spinner spinner.Model
 
-	styles  theme.Styles
-	th      theme.Theme
-	active  subTab
-	focused bool
-	loading bool
-	hasResp bool
-	status  string
-	code    int
-	width   int
-	height  int
+	styles   theme.Styles
+	th       theme.Theme
+	active   subTab
+	mode     responseMode
+	focused  bool
+	loading  bool
+	hasResp  bool
+	status   string
+	code     int
+	width    int
+	height   int
+	baseline []byte
 }
 
 // New creates a new response panel model.
@@ -54,9 +77,23 @@ func New(t theme.Theme, s theme.Styles) Model {
 		headers: NewHeadersModel(s),
 		cookies: NewCookiesModel(s),
 		timing:  NewTimingModel(s),
+		diff:    NewDiffModel(t, s),
+		console: NewConsoleModel(t, s),
+		wslog:   NewWSLogModel(t, s),
 		spinner: sp,
 		styles:  s,
 		th:      t,
+	}
+}
+
+// SetMode switches between HTTP and WebSocket response modes.
+func (m *Model) SetMode(proto string) {
+	if proto == "websocket" {
+		m.mode = modeWebSocket
+		m.active = wsTabMessages
+	} else {
+		m.mode = modeHTTP
+		m.active = tabBody
 	}
 }
 
@@ -75,6 +112,33 @@ func (m *Model) SetResponse(resp *protocol.Response) {
 	m.headers.SetHeaders(resp.Headers)
 	m.cookies.SetHeaders(resp.Headers)
 	m.timing.SetResponse(resp)
+
+	// Auto-compute diff if baseline exists
+	if m.baseline != nil {
+		m.diff.SetDiff(m.baseline, resp.Body)
+	}
+}
+
+// SetBaseline saves the current response body as the diff baseline.
+func (m *Model) SetBaseline(body []byte) {
+	m.baseline = make([]byte, len(body))
+	copy(m.baseline, body)
+}
+
+// ClearBaseline removes the saved diff baseline.
+func (m *Model) ClearBaseline() {
+	m.baseline = nil
+	m.diff.Clear()
+}
+
+// HasBaseline returns whether a baseline is set.
+func (m Model) HasBaseline() bool {
+	return m.baseline != nil
+}
+
+// ResponseBody returns the current response body.
+func (m Model) ResponseBody() []byte {
+	return m.body.raw
 }
 
 // SetLoading puts the panel into loading state.
@@ -85,6 +149,22 @@ func (m *Model) SetLoading(loading bool) {
 // SetFocused sets whether this panel has focus.
 func (m *Model) SetFocused(focused bool) {
 	m.focused = focused
+}
+
+// AddWSMessage adds a WebSocket message to the log.
+func (m *Model) AddWSMessage(msg WSMessage) {
+	m.wslog.AddMessage(msg)
+	m.hasResp = true
+}
+
+// ClearWSLog clears the WebSocket message log.
+func (m *Model) ClearWSLog() {
+	m.wslog.Clear()
+}
+
+// SetScriptResults sets the script console output.
+func (m *Model) SetScriptResults(logs []string, tests []ScriptTestResult, errMsg string) {
+	m.console.SetResults(logs, tests, errMsg)
 }
 
 // SetSize updates the panel dimensions.
@@ -106,10 +186,24 @@ func (m *Model) SetSize(w, h int) {
 	m.headers.SetSize(innerW, innerH)
 	m.cookies.SetSize(innerW, innerH)
 	m.timing.SetSize(innerW, innerH)
+	m.diff.SetSize(innerW, innerH)
+	m.console.SetSize(innerW, innerH)
+	m.wslog.SetSize(innerW, innerH)
 }
 
 func (m Model) Init() tea.Cmd {
 	return m.spinner.Tick
+}
+
+func (m Model) tabLabels() []string {
+	if m.mode == modeWebSocket {
+		return wsTabLabels
+	}
+	return httpTabLabels
+}
+
+func (m Model) tabCount() int {
+	return len(m.tabLabels())
 }
 
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
@@ -117,26 +211,42 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "tab":
-			m.active = (m.active + 1) % subTab(len(subTabLabels))
+			m.active = (m.active + 1) % subTab(m.tabCount())
 			return m, nil
 		case "shift+tab":
 			if m.active == 0 {
-				m.active = subTab(len(subTabLabels) - 1)
+				m.active = subTab(m.tabCount() - 1)
 			} else {
 				m.active--
 			}
 			return m, nil
 		case "1":
-			m.active = tabBody
+			m.active = 0
 			return m, nil
 		case "2":
-			m.active = tabHeaders
+			if m.tabCount() > 1 {
+				m.active = 1
+			}
 			return m, nil
 		case "3":
-			m.active = tabCookies
+			if m.tabCount() > 2 {
+				m.active = 2
+			}
 			return m, nil
 		case "4":
-			m.active = tabTiming
+			if m.tabCount() > 3 {
+				m.active = 3
+			}
+			return m, nil
+		case "5":
+			if m.tabCount() > 4 {
+				m.active = 4
+			}
+			return m, nil
+		case "6":
+			if m.tabCount() > 5 {
+				m.active = 5
+			}
 			return m, nil
 		}
 	case spinner.TickMsg:
@@ -149,15 +259,30 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 	// Delegate to active sub-model
 	var cmd tea.Cmd
-	switch m.active {
-	case tabBody:
-		m.body, cmd = m.body.Update(msg)
-	case tabHeaders:
-		m.headers, cmd = m.headers.Update(msg)
-	case tabCookies:
-		m.cookies, cmd = m.cookies.Update(msg)
-	case tabTiming:
-		m.timing, cmd = m.timing.Update(msg)
+	if m.mode == modeWebSocket {
+		switch m.active {
+		case wsTabMessages:
+			m.wslog, cmd = m.wslog.Update(msg)
+		case wsTabHeaders:
+			m.headers, cmd = m.headers.Update(msg)
+		case wsTabTiming:
+			m.timing, cmd = m.timing.Update(msg)
+		}
+	} else {
+		switch m.active {
+		case tabBody:
+			m.body, cmd = m.body.Update(msg)
+		case tabHeaders:
+			m.headers, cmd = m.headers.Update(msg)
+		case tabCookies:
+			m.cookies, cmd = m.cookies.Update(msg)
+		case tabTiming:
+			m.timing, cmd = m.timing.Update(msg)
+		case tabDiff:
+			m.diff, cmd = m.diff.Update(msg)
+		case tabConsole:
+			m.console, cmd = m.console.Update(msg)
+		}
 	}
 
 	return m, cmd
@@ -211,15 +336,30 @@ func (m Model) renderResponse(w, h int) string {
 	}
 
 	var body string
-	switch m.active {
-	case tabBody:
-		body = m.body.View()
-	case tabHeaders:
-		body = m.headers.View()
-	case tabCookies:
-		body = m.cookies.View()
-	case tabTiming:
-		body = m.timing.View()
+	if m.mode == modeWebSocket {
+		switch m.active {
+		case wsTabMessages:
+			body = m.wslog.View()
+		case wsTabHeaders:
+			body = m.headers.View()
+		case wsTabTiming:
+			body = m.timing.View()
+		}
+	} else {
+		switch m.active {
+		case tabBody:
+			body = m.body.View()
+		case tabHeaders:
+			body = m.headers.View()
+		case tabCookies:
+			body = m.cookies.View()
+		case tabTiming:
+			body = m.timing.View()
+		case tabDiff:
+			body = m.diff.View()
+		case tabConsole:
+			body = m.console.View()
+		}
 	}
 
 	body = lipgloss.NewStyle().Width(w).Height(contentH).Render(body)
@@ -228,8 +368,9 @@ func (m Model) renderResponse(w, h int) string {
 }
 
 func (m Model) renderTabs(width int) string {
+	labels := m.tabLabels()
 	var tabs []string
-	for i, label := range subTabLabels {
+	for i, label := range labels {
 		if subTab(i) == m.active {
 			tabs = append(tabs, m.styles.TabActive.Render(label))
 		} else {
@@ -241,6 +382,13 @@ func (m Model) renderTabs(width int) string {
 }
 
 func (m Model) renderStatus(width int) string {
+	if m.mode == modeWebSocket {
+		if m.wslog.MessageCount() > 0 {
+			statusStyle := lipgloss.NewStyle().Foreground(m.th.Green).Bold(true)
+			return statusStyle.Width(width).Render("WebSocket Connected")
+		}
+		return lipgloss.NewStyle().Foreground(m.th.Muted).Width(width).Render("WebSocket")
+	}
 	color := m.th.StatusColor(m.code)
 	statusStyle := lipgloss.NewStyle().Foreground(color).Bold(true)
 	return statusStyle.Width(width).Render(m.status)

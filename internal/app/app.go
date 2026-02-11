@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,6 +15,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	oauth2auth "github.com/serdar/gottp/internal/auth/oauth2"
 	"github.com/serdar/gottp/internal/config"
 	"github.com/serdar/gottp/internal/core/collection"
 	"github.com/serdar/gottp/internal/core/environment"
@@ -21,8 +23,16 @@ import (
 	"github.com/serdar/gottp/internal/core/state"
 	"github.com/serdar/gottp/internal/export"
 	curlimport "github.com/serdar/gottp/internal/import/curl"
+	importutil "github.com/serdar/gottp/internal/import"
+	"github.com/serdar/gottp/internal/import/insomnia"
+	"github.com/serdar/gottp/internal/import/openapi"
+	"github.com/serdar/gottp/internal/import/postman"
 	"github.com/serdar/gottp/internal/protocol"
+	"github.com/serdar/gottp/internal/protocol/graphql"
+	grpcclient "github.com/serdar/gottp/internal/protocol/grpc"
 	httpclient "github.com/serdar/gottp/internal/protocol/http"
+	wsclient "github.com/serdar/gottp/internal/protocol/websocket"
+	"github.com/serdar/gottp/internal/scripting"
 	"github.com/serdar/gottp/internal/ui/components"
 	"github.com/serdar/gottp/internal/ui/layout"
 	"github.com/serdar/gottp/internal/ui/msgs"
@@ -46,11 +56,12 @@ type App struct {
 	modal          components.Modal
 	jump           components.JumpOverlay
 
-	store   *state.Store
-	client  *httpclient.Client
-	envFile *environment.EnvironmentFile
-	cfg     config.Config
-	history *history.Store
+	store        *state.Store
+	protocols    *protocol.Registry
+	scriptEngine *scripting.Engine
+	envFile      *environment.EnvironmentFile
+	cfg          config.Config
+	history      *history.Store
 
 	mode           msgs.AppMode
 	focus          msgs.PanelFocus
@@ -68,7 +79,7 @@ type App struct {
 
 // New creates a new App model.
 func New(col *collection.Collection, colPath string, cfg config.Config) App {
-	t := theme.Default()
+	t := theme.Resolve(cfg.Theme)
 	s := theme.NewStyles(t)
 
 	store := state.NewStore()
@@ -76,10 +87,23 @@ func New(col *collection.Collection, colPath string, cfg config.Config) App {
 	store.CollectionPath = colPath
 	store.NewTab()
 
-	client := httpclient.New()
+	// Set up protocol registry
+	registry := protocol.NewRegistry()
+	httpClient := httpclient.New()
 	if cfg.DefaultTimeout > 0 {
-		client.SetTimeout(cfg.DefaultTimeout)
+		httpClient.SetTimeout(cfg.DefaultTimeout)
 	}
+	registry.Register(httpClient)
+	registry.Register(graphql.New())
+	registry.Register(wsclient.New())
+	registry.Register(grpcclient.New())
+
+	// Init scripting engine
+	scriptTimeout := cfg.ScriptTimeout
+	if scriptTimeout == 0 {
+		scriptTimeout = 5 * time.Second
+	}
+	scriptEngine := scripting.NewEngine(scriptTimeout)
 
 	// Load environments from environments.yaml next to the collection file
 	var envFile *environment.EnvironmentFile
@@ -104,7 +128,7 @@ func New(col *collection.Collection, colPath string, cfg config.Config) App {
 
 	a := App{
 		sidebar:  sidebar.New(t, s),
-		editor:   editor.New(s),
+		editor:   editor.New(t, s),
 		response: response.New(t, s),
 
 		tabBar:         components.NewTabBar(t, s),
@@ -115,11 +139,12 @@ func New(col *collection.Collection, colPath string, cfg config.Config) App {
 		modal:          components.NewModal(t, s),
 		jump:           components.NewJumpOverlay(t, s),
 
-		store:   store,
-		client:  client,
-		envFile: envFile,
-		cfg:     cfg,
-		history: histStore,
+		store:        store,
+		protocols:    registry,
+		scriptEngine: scriptEngine,
+		envFile:      envFile,
+		cfg:          cfg,
+		history:      histStore,
 
 		mode:           msgs.ModeNormal,
 		focus:          msgs.FocusEditor,
@@ -250,6 +275,9 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd := a.toast.Show("No environments found", true, 2*time.Second)
 		return a, cmd
 
+	case msgs.SwitchThemeMsg:
+		return a.handleSwitchTheme(msg)
+
 	case msgs.ToggleSidebarMsg:
 		a.sidebarVisible = !a.sidebarVisible
 		a.layout = layout.Calculate(a.width, a.height, a.sidebarVisible)
@@ -296,6 +324,23 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case msgs.ImportCurlMsg:
 		return a.importCurl()
 
+	case msgs.ImportFileMsg:
+		return a.handleImportFile(msg)
+
+	case msgs.ImportCompleteMsg:
+		return a.handleImportComplete(msg)
+
+	case msgs.SetBaselineMsg:
+		return a.handleSetBaseline()
+
+	case msgs.ClearBaselineMsg:
+		a.response.ClearBaseline()
+		cmd := a.toast.Show("Baseline cleared", false, 2*time.Second)
+		return a, cmd
+
+	case msgs.OAuth2TokenMsg:
+		return a.handleOAuth2Token(msg)
+
 	case msgs.HistorySelectedMsg:
 		return a.handleHistorySelected(msg)
 
@@ -309,11 +354,56 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case msgs.EditorDoneMsg:
 		if msg.Content != "" {
-			a.editor.Form().SetBody(msg.Content)
+			a.editor.SetBody(msg.Content)
 			cmd := a.toast.Show("Body updated from editor", false, 2*time.Second)
 			return a, cmd
 		}
 		return a, nil
+
+	case msgs.SwitchProtocolMsg:
+		a.editor.SetProtocol(msg.Protocol)
+		a.response.SetMode(msg.Protocol)
+		return a, nil
+
+	case msgs.IntrospectMsg:
+		return a.handleIntrospect()
+
+	case msgs.IntrospectionResultMsg:
+		return a.handleIntrospectionResult(msg)
+
+	case msgs.ScriptResultMsg:
+		return a.handleScriptResult(msg)
+
+	case msgs.WSConnectedMsg:
+		if msg.Err != nil {
+			cmd := a.toast.Show("WebSocket error: "+msg.Err.Error(), true, 5*time.Second)
+			return a, cmd
+		}
+		cmd := a.toast.Show("WebSocket connected", false, 2*time.Second)
+		return a, cmd
+
+	case msgs.WSDisconnectedMsg:
+		if msg.Err != nil {
+			cmd := a.toast.Show("WebSocket closed: "+msg.Err.Error(), true, 3*time.Second)
+			return a, cmd
+		}
+		cmd := a.toast.Show("WebSocket disconnected", false, 2*time.Second)
+		return a, cmd
+
+	case msgs.WSMessageReceivedMsg:
+		a.response.AddWSMessage(response.WSMessage{
+			Direction: "received",
+			Content:   msg.Content,
+			Timestamp: msg.Timestamp,
+			IsJSON:    msg.IsJSON,
+		})
+		return a, nil
+
+	case msgs.GRPCReflectMsg:
+		return a.handleGRPCReflect()
+
+	case msgs.GRPCReflectionResultMsg:
+		return a.handleGRPCReflectionResult(msg)
 	}
 
 	var cmd tea.Cmd
@@ -380,7 +470,7 @@ func (a App) handlePanelKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if a.focus == msgs.FocusEditor {
 			a.mode = msgs.ModeInsert
 			a.statusBar.SetMode(msgs.ModeInsert)
-			a.editor.Form().FocusURL()
+			a.editor.FocusURL()
 			return a, nil
 		}
 	case "enter":
@@ -497,11 +587,14 @@ func (a *App) loadActiveRequest() {
 }
 
 func (a App) sendRequest() (tea.Model, tea.Cmd) {
-	req := a.editor.Form().BuildRequest()
+	req := a.editor.BuildRequest()
 	if req.URL == "" {
 		a.statusBar.SetMessage("URL is required")
 		return a, nil
 	}
+
+	// Set response mode based on protocol
+	a.response.SetMode(a.editor.Protocol())
 
 	// Resolve environment variables
 	envVars := a.store.EnvVars
@@ -509,13 +602,13 @@ func (a App) sendRequest() (tea.Model, tea.Cmd) {
 	if a.store.Collection != nil {
 		colVars = a.store.Collection.Variables
 	}
-	if envVars != nil || colVars != nil {
-		if envVars == nil {
-			envVars = map[string]string{}
-		}
-		if colVars == nil {
-			colVars = map[string]string{}
-		}
+	if envVars == nil {
+		envVars = map[string]string{}
+	}
+	if colVars == nil {
+		colVars = map[string]string{}
+	}
+	if len(envVars) > 0 || len(colVars) > 0 {
 		req.URL = environment.Resolve(req.URL, envVars, colVars)
 		for k, v := range req.Headers {
 			req.Headers[k] = environment.Resolve(v, envVars, colVars)
@@ -535,6 +628,41 @@ func (a App) sendRequest() (tea.Model, tea.Cmd) {
 		}
 	}
 
+	// Run pre-request script
+	if req.PreScript != "" && a.scriptEngine != nil {
+		scriptReq := &scripting.ScriptRequest{
+			Method:  req.Method,
+			URL:     req.URL,
+			Headers: req.Headers,
+			Params:  req.Params,
+			Body:    string(req.Body),
+		}
+		result := a.scriptEngine.RunPreScript(req.PreScript, scriptReq, envVars)
+		if result.Err != nil {
+			a.response.SetScriptResults(result.Logs, convertTestResults(result.TestResults), result.Err.Error())
+			cmd := a.toast.Show("Pre-script error: "+result.Err.Error(), true, 3*time.Second)
+			return a, cmd
+		}
+		// Apply mutations from pre-script
+		req.Method = scriptReq.Method
+		req.URL = scriptReq.URL
+		req.Headers = scriptReq.Headers
+		req.Params = scriptReq.Params
+		req.Body = []byte(scriptReq.Body)
+		// Apply env changes
+		for k, v := range result.EnvChanges {
+			a.store.EnvVars[k] = v
+		}
+	}
+
+	// Handle OAuth2: check for valid token or initiate flow
+	if req.Auth != nil && req.Auth.Type == "oauth2" && req.Auth.OAuth2 != nil {
+		oauth := req.Auth.OAuth2
+		if oauth.AccessToken == "" || (oauth.TokenExpiry != (time.Time{}) && time.Now().After(oauth.TokenExpiry)) {
+			return a.initiateOAuth2(req)
+		}
+	}
+
 	a.response.SetLoading(true)
 
 	timeout := a.cfg.DefaultTimeout
@@ -542,16 +670,19 @@ func (a App) sendRequest() (tea.Model, tea.Cmd) {
 		timeout = 30 * time.Second
 	}
 
-	client := a.client
+	registry := a.protocols
+	postScript := req.PostScript
+	scriptEngine := a.scriptEngine
 	cmd := func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
 
-		resp, err := client.Execute(ctx, req)
+		resp, err := registry.Execute(ctx, req)
 		if err != nil {
 			return msgs.RequestSentMsg{Err: err}
 		}
-		return msgs.RequestSentMsg{
+
+		sentMsg := msgs.RequestSentMsg{
 			StatusCode:  resp.StatusCode,
 			Status:      resp.Status,
 			Headers:     resp.Headers,
@@ -560,9 +691,224 @@ func (a App) sendRequest() (tea.Model, tea.Cmd) {
 			Duration:    resp.Duration,
 			Size:        resp.Size,
 		}
+
+		// Run post-request script if present
+		if postScript != "" && scriptEngine != nil {
+			scriptReq := &scripting.ScriptRequest{
+				Method:  req.Method,
+				URL:     req.URL,
+				Headers: req.Headers,
+				Params:  req.Params,
+				Body:    string(req.Body),
+			}
+			respHeaders := make(map[string]string)
+			for k := range resp.Headers {
+				respHeaders[k] = resp.Headers.Get(k)
+			}
+			scriptResp := &scripting.ScriptResponse{
+				StatusCode:  resp.StatusCode,
+				Status:      resp.Status,
+				Body:        string(resp.Body),
+				Headers:     respHeaders,
+				Duration:    float64(resp.Duration.Milliseconds()),
+				Size:        resp.Size,
+				ContentType: resp.ContentType,
+			}
+			result := scriptEngine.RunPostScript(postScript, scriptReq, scriptResp, envVars)
+			sentMsg.ScriptResult = &msgs.ScriptResultMsg{
+				Logs:        result.Logs,
+				TestResults: convertScriptTestResults(result.TestResults),
+				EnvChanges:  result.EnvChanges,
+			}
+			if result.Err != nil {
+				errStr := result.Err.Error()
+				sentMsg.ScriptErr = &errStr
+			}
+		}
+
+		return sentMsg
 	}
 
 	return a, tea.Batch(cmd, a.response.Init())
+}
+
+func (a App) initiateOAuth2(req *protocol.Request) (tea.Model, tea.Cmd) {
+	oauth := req.Auth.OAuth2
+	a.response.SetLoading(true)
+
+	switch oauth.GrantType {
+	case "client_credentials":
+		cfg := oauth2auth.OAuth2Config{
+			TokenURL:     oauth.TokenURL,
+			ClientID:     oauth.ClientID,
+			ClientSecret: oauth.ClientSecret,
+			Scope:        oauth.Scope,
+		}
+		cmd := func() tea.Msg {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			token, err := oauth2auth.ClientCredentials(ctx, cfg)
+			if err != nil {
+				return msgs.OAuth2TokenMsg{Err: err}
+			}
+			return msgs.OAuth2TokenMsg{
+				AccessToken:  token.AccessToken,
+				RefreshToken: token.RefreshToken,
+				ExpiresIn:    token.ExpiresIn,
+			}
+		}
+		return a, cmd
+
+	case "password":
+		cfg := oauth2auth.OAuth2Config{
+			TokenURL:     oauth.TokenURL,
+			ClientID:     oauth.ClientID,
+			ClientSecret: oauth.ClientSecret,
+			Username:     oauth.Username,
+			Password:     oauth.Password,
+			Scope:        oauth.Scope,
+		}
+		cmd := func() tea.Msg {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			token, err := oauth2auth.PasswordGrant(ctx, cfg)
+			if err != nil {
+				return msgs.OAuth2TokenMsg{Err: err}
+			}
+			return msgs.OAuth2TokenMsg{
+				AccessToken:  token.AccessToken,
+				RefreshToken: token.RefreshToken,
+				ExpiresIn:    token.ExpiresIn,
+			}
+		}
+		return a, cmd
+
+	case "authorization_code":
+		a.response.SetLoading(false)
+		cmd := a.toast.Show("Auth code flow: use browser to authorize", false, 5*time.Second)
+		return a, cmd
+	}
+
+	a.response.SetLoading(false)
+	cmd := a.toast.Show("Unknown OAuth2 grant type", true, 3*time.Second)
+	return a, cmd
+}
+
+func (a App) handleOAuth2Token(msg msgs.OAuth2TokenMsg) (tea.Model, tea.Cmd) {
+	if msg.Err != nil {
+		a.response.SetLoading(false)
+		cmd := a.toast.Show("OAuth2 error: "+msg.Err.Error(), true, 5*time.Second)
+		return a, cmd
+	}
+
+	// Update the auth form with the acquired token and retry
+	authCfg := a.editor.BuildAuth()
+	if authCfg != nil && authCfg.OAuth2 != nil {
+		authCfg.OAuth2.AccessToken = msg.AccessToken
+		authCfg.OAuth2.RefreshToken = msg.RefreshToken
+		if msg.ExpiresIn > 0 {
+			authCfg.OAuth2.TokenExpiry = time.Now().Add(time.Duration(msg.ExpiresIn) * time.Second)
+		}
+	}
+
+	cmd := a.toast.Show("OAuth2 token acquired", false, 2*time.Second)
+	return a, cmd
+}
+
+func convertTestResults(results []scripting.TestResult) []response.ScriptTestResult {
+	out := make([]response.ScriptTestResult, len(results))
+	for i, r := range results {
+		out[i] = response.ScriptTestResult{Name: r.Name, Passed: r.Passed, Error: r.Error}
+	}
+	return out
+}
+
+func convertScriptTestResults(results []scripting.TestResult) []msgs.ScriptTestResult {
+	out := make([]msgs.ScriptTestResult, len(results))
+	for i, r := range results {
+		out[i] = msgs.ScriptTestResult{Name: r.Name, Passed: r.Passed, Error: r.Error}
+	}
+	return out
+}
+
+func (a App) handleIntrospect() (tea.Model, tea.Cmd) {
+	req := a.editor.BuildRequest()
+	if req.URL == "" {
+		cmd := a.toast.Show("URL is required for introspection", true, 2*time.Second)
+		return a, cmd
+	}
+
+	url := req.URL
+	headers := req.Headers
+	cmd := func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		schema, err := graphql.RunIntrospection(ctx, url, headers)
+		if err != nil {
+			return msgs.IntrospectionResultMsg{Err: err}
+		}
+		types := make([]msgs.SchemaType, len(schema.Types))
+		for i, t := range schema.Types {
+			fields := make([]msgs.SchemaField, len(t.Fields))
+			for j, f := range t.Fields {
+				fields[j] = msgs.SchemaField{Name: f.Name, Type: f.Type}
+			}
+			types[i] = msgs.SchemaType{Name: t.Name, Fields: fields}
+		}
+		return msgs.IntrospectionResultMsg{Types: types}
+	}
+
+	toastCmd := a.toast.Show("Running introspection...", false, 2*time.Second)
+	return a, tea.Batch(cmd, toastCmd)
+}
+
+func (a App) handleIntrospectionResult(msg msgs.IntrospectionResultMsg) (tea.Model, tea.Cmd) {
+	if msg.Err != nil {
+		cmd := a.toast.Show("Introspection failed: "+msg.Err.Error(), true, 5*time.Second)
+		return a, cmd
+	}
+	cmd := a.toast.Show("Introspection complete: "+fmt.Sprintf("%d types", len(msg.Types)), false, 2*time.Second)
+	return a, cmd
+}
+
+func (a App) handleScriptResult(msg msgs.ScriptResultMsg) (tea.Model, tea.Cmd) {
+	var testResults []response.ScriptTestResult
+	for _, tr := range msg.TestResults {
+		testResults = append(testResults, response.ScriptTestResult{
+			Name:   tr.Name,
+			Passed: tr.Passed,
+			Error:  tr.Error,
+		})
+	}
+	errMsg := ""
+	if msg.Err != nil {
+		errMsg = msg.Err.Error()
+	}
+	a.response.SetScriptResults(msg.Logs, testResults, errMsg)
+
+	// Apply env changes
+	for k, v := range msg.EnvChanges {
+		a.store.EnvVars[k] = v
+	}
+
+	return a, nil
+}
+
+func (a App) handleGRPCReflect() (tea.Model, tea.Cmd) {
+	// gRPC reflection is a placeholder until the gRPC client is implemented
+	cmd := a.toast.Show("gRPC reflection not yet implemented", true, 2*time.Second)
+	return a, cmd
+}
+
+func (a App) handleGRPCReflectionResult(msg msgs.GRPCReflectionResultMsg) (tea.Model, tea.Cmd) {
+	if msg.Err != nil {
+		cmd := a.toast.Show("gRPC reflection failed: "+msg.Err.Error(), true, 5*time.Second)
+		return a, cmd
+	}
+	// Pass services to gRPC form
+	a.editor.GRPCFormRef().SetServices(msg.Services)
+	cmd := a.toast.Show("gRPC reflection complete", false, 2*time.Second)
+	return a, cmd
 }
 
 func (a App) handleRequestSent(msg msgs.RequestSentMsg) (tea.Model, tea.Cmd) {
@@ -586,9 +932,28 @@ func (a App) handleRequestSent(msg msgs.RequestSentMsg) (tea.Model, tea.Cmd) {
 	a.response.SetResponse(resp)
 	a.statusBar.SetStatus(msg.StatusCode, msg.Duration, msg.Size, msg.ContentType)
 
+	// Process post-script results if present
+	if msg.ScriptResult != nil {
+		var testResults []response.ScriptTestResult
+		for _, tr := range msg.ScriptResult.TestResults {
+			testResults = append(testResults, response.ScriptTestResult{
+				Name: tr.Name, Passed: tr.Passed, Error: tr.Error,
+			})
+		}
+		errMsg := ""
+		if msg.ScriptErr != nil {
+			errMsg = *msg.ScriptErr
+		}
+		a.response.SetScriptResults(msg.ScriptResult.Logs, testResults, errMsg)
+		// Apply env changes from post-script
+		for k, v := range msg.ScriptResult.EnvChanges {
+			a.store.EnvVars[k] = v
+		}
+	}
+
 	// Save to history
 	if a.history != nil {
-		req := a.editor.Form().BuildRequest()
+		req := a.editor.BuildRequest()
 		headersJSON, _ := json.Marshal(req.Headers)
 		a.history.Add(history.Entry{
 			Method:       req.Method,
@@ -653,26 +1018,26 @@ func (a App) saveCollection() (tea.Model, tea.Cmd) {
 	// Sync form state back to the active request before saving
 	req := a.store.ActiveRequest()
 	if req != nil {
-		built := a.editor.Form().BuildRequest()
+		built := a.editor.BuildRequest()
 		req.Method = built.Method
 		req.URL = built.URL
 
 		// Sync params
-		formParams := a.editor.Form().GetParams()
+		formParams := a.editor.GetParams()
 		req.Params = make([]collection.KVPair, len(formParams))
 		for i, p := range formParams {
 			req.Params[i] = collection.KVPair{Key: p.Key, Value: p.Value, Enabled: p.Enabled}
 		}
 
 		// Sync headers
-		formHeaders := a.editor.Form().GetHeaders()
+		formHeaders := a.editor.GetHeaders()
 		req.Headers = make([]collection.KVPair, len(formHeaders))
 		for i, h := range formHeaders {
 			req.Headers[i] = collection.KVPair{Key: h.Key, Value: h.Value, Enabled: h.Enabled}
 		}
 
 		// Sync body
-		bodyContent := a.editor.Form().GetBodyContent()
+		bodyContent := a.editor.GetBodyContent()
 		if bodyContent != "" {
 			if req.Body == nil {
 				req.Body = &collection.Body{Type: "json"}
@@ -683,7 +1048,7 @@ func (a App) saveCollection() (tea.Model, tea.Cmd) {
 		}
 
 		// Sync auth
-		authConfig := a.editor.Form().BuildAuth()
+		authConfig := a.editor.BuildAuth()
 		if authConfig != nil && authConfig.Type != "none" {
 			req.Auth = a.authConfigToCollection(authConfig)
 		} else {
@@ -712,8 +1077,161 @@ func (a App) authConfigToCollection(auth *protocol.AuthConfig) *collection.Auth 
 		ca.Bearer = &collection.BearerAuth{Token: auth.Token}
 	case "apikey":
 		ca.APIKey = &collection.APIKeyAuth{Key: auth.APIKey, Value: auth.APIValue, In: auth.APIIn}
+	case "oauth2":
+		if auth.OAuth2 != nil {
+			ca.OAuth2 = &collection.OAuth2Auth{
+				GrantType:    auth.OAuth2.GrantType,
+				AuthURL:      auth.OAuth2.AuthURL,
+				TokenURL:     auth.OAuth2.TokenURL,
+				ClientID:     auth.OAuth2.ClientID,
+				ClientSecret: auth.OAuth2.ClientSecret,
+				Scope:        auth.OAuth2.Scope,
+				Username:     auth.OAuth2.Username,
+				Password:     auth.OAuth2.Password,
+				UsePKCE:      auth.OAuth2.UsePKCE,
+			}
+		}
+	case "awsv4":
+		if auth.AWSAuth != nil {
+			ca.AWSAuth = &collection.AWSAuth{
+				AccessKeyID:    auth.AWSAuth.AccessKeyID,
+				SecretAccessKey: auth.AWSAuth.SecretAccessKey,
+				SessionToken:   auth.AWSAuth.SessionToken,
+				Region:         auth.AWSAuth.Region,
+				Service:        auth.AWSAuth.Service,
+			}
+		}
 	}
 	return ca
+}
+
+func (a App) handleSwitchTheme(msg msgs.SwitchThemeMsg) (tea.Model, tea.Cmd) {
+	if msg.Name == "" {
+		// Open theme picker
+		names := theme.Names()
+		a.commandPalette.OpenThemePicker(names)
+		a.mode = msgs.ModeCommandPalette
+		return a, nil
+	}
+
+	t := theme.Resolve(msg.Name)
+	s := theme.NewStyles(t)
+	a.theme = t
+	a.styles = s
+
+	// Rebuild all components with new styles
+	a.sidebar = sidebar.New(t, s)
+	a.response = response.New(t, s)
+	a.tabBar = components.NewTabBar(t, s)
+	a.statusBar = components.NewStatusBar(t, s)
+	a.commandPalette = components.NewCommandPalette(t, s)
+	a.help = components.NewHelp(t, s)
+	a.toast = components.NewToast(t, s)
+	a.modal = components.NewModal(t, s)
+	a.jump = components.NewJumpOverlay(t, s)
+
+	// Re-set state
+	if a.store.Collection != nil {
+		items := collection.FlattenItems(a.store.Collection.Items, 0, "")
+		a.sidebar.SetItems(items)
+	}
+	a.loadHistory()
+	if a.store.ActiveEnv != "" {
+		a.statusBar.SetEnv(a.store.ActiveEnv)
+	}
+	a.statusBar.SetMode(a.mode)
+	a.syncTabs()
+	a.resizePanels()
+
+	cmd := a.toast.Show("Theme: "+t.Name, false, 2*time.Second)
+	return a, cmd
+}
+
+func (a App) handleImportFile(msg msgs.ImportFileMsg) (tea.Model, tea.Cmd) {
+	// For file-based import, we'd need a file picker. For now, use clipboard content.
+	text, err := clipboard.ReadAll()
+	if err != nil {
+		cmd := a.toast.Show("Clipboard error: "+err.Error(), true, 3*time.Second)
+		return a, cmd
+	}
+	text = strings.TrimSpace(text)
+	if text == "" {
+		cmd := a.toast.Show("Clipboard is empty. Copy file content first.", true, 2*time.Second)
+		return a, cmd
+	}
+
+	data := []byte(text)
+	cmd := func() tea.Msg {
+		format := msg.Path // hint from command
+		if format == "" {
+			format = importutil.DetectFormat(data)
+		}
+
+		var col *collection.Collection
+		var parseErr error
+
+		switch format {
+		case "postman":
+			col, parseErr = postman.ParsePostman(data)
+		case "insomnia":
+			col, parseErr = insomnia.ParseInsomnia(data)
+		case "openapi":
+			col, parseErr = openapi.ParseOpenAPI(data)
+		default:
+			// Try auto-detection
+			detected := importutil.DetectFormat(data)
+			switch detected {
+			case "postman":
+				col, parseErr = postman.ParsePostman(data)
+			case "insomnia":
+				col, parseErr = insomnia.ParseInsomnia(data)
+			case "openapi":
+				col, parseErr = openapi.ParseOpenAPI(data)
+			default:
+				return msgs.ImportCompleteMsg{Err: os.ErrInvalid}
+			}
+		}
+
+		return msgs.ImportCompleteMsg{Collection: col, Err: parseErr}
+	}
+
+	return a, cmd
+}
+
+func (a App) handleImportComplete(msg msgs.ImportCompleteMsg) (tea.Model, tea.Cmd) {
+	if msg.Err != nil {
+		cmd := a.toast.Show("Import failed: "+msg.Err.Error(), true, 3*time.Second)
+		return a, cmd
+	}
+
+	if msg.Collection == nil {
+		cmd := a.toast.Show("No data imported", true, 2*time.Second)
+		return a, cmd
+	}
+
+	// Merge into current collection or set as new
+	if a.store.Collection == nil {
+		a.store.Collection = msg.Collection
+	} else {
+		a.store.Collection.Items = append(a.store.Collection.Items, msg.Collection.Items...)
+	}
+
+	items := collection.FlattenItems(a.store.Collection.Items, 0, "")
+	a.sidebar.SetItems(items)
+
+	cmd := a.toast.Show("Imported "+msg.Collection.Name, false, 2*time.Second)
+	return a, cmd
+}
+
+func (a App) handleSetBaseline() (tea.Model, tea.Cmd) {
+	body := a.response.ResponseBody()
+	if len(body) == 0 {
+		cmd := a.toast.Show("No response to use as baseline", true, 2*time.Second)
+		return a, cmd
+	}
+	a.response.SetBaseline(body)
+	cmd := a.toast.Show("Baseline set", false, 2*time.Second)
+	return a, cmd
 }
 
 func (a App) openExternalEditor() (tea.Model, tea.Cmd) {
@@ -732,7 +1250,7 @@ func (a App) openExternalEditor() (tea.Model, tea.Cmd) {
 		return a, cmd
 	}
 
-	bodyContent := a.editor.Form().GetBodyContent()
+	bodyContent := a.editor.GetBodyContent()
 	if bodyContent != "" {
 		tmpFile.WriteString(bodyContent)
 	}
@@ -804,7 +1322,7 @@ func (a App) handleHistorySelected(msg msgs.HistorySelectedMsg) (tea.Model, tea.
 }
 
 func (a App) copyAsCurl() (tea.Model, tea.Cmd) {
-	req := a.editor.Form().BuildRequest()
+	req := a.editor.BuildRequest()
 	if req.URL == "" {
 		cmd := a.toast.Show("No URL to copy", true, 2*time.Second)
 		return a, cmd

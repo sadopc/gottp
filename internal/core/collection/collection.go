@@ -38,6 +38,7 @@ type Request struct {
 
 	GraphQL   *GraphQLConfig   `yaml:"graphql,omitempty"`
 	WebSocket *WebSocketConfig `yaml:"websocket,omitempty"`
+	GRPC      *GRPCConfig      `yaml:"grpc,omitempty"`
 
 	PreScript  string `yaml:"pre_script,omitempty"`
 	PostScript string `yaml:"post_script,omitempty"`
@@ -63,10 +64,12 @@ type KVPair struct {
 
 // Auth represents authentication configuration.
 type Auth struct {
-	Type   string      `yaml:"type"` // none, basic, bearer, apikey
+	Type   string      `yaml:"type"` // none, basic, bearer, apikey, oauth2, awsv4
 	Basic  *BasicAuth  `yaml:"basic,omitempty"`
 	Bearer *BearerAuth `yaml:"bearer,omitempty"`
 	APIKey *APIKeyAuth `yaml:"apikey,omitempty"`
+	OAuth2 *OAuth2Auth `yaml:"oauth2,omitempty"`
+	AWSAuth *AWSAuth   `yaml:"awsv4,omitempty"`
 }
 
 // BasicAuth holds basic auth credentials.
@@ -85,6 +88,28 @@ type APIKeyAuth struct {
 	Key   string `yaml:"key"`
 	Value string `yaml:"value"`
 	In    string `yaml:"in"` // header, query
+}
+
+// OAuth2Auth holds OAuth2 auth configuration in collection files.
+type OAuth2Auth struct {
+	GrantType    string `yaml:"grant_type"` // authorization_code, client_credentials, password
+	AuthURL      string `yaml:"auth_url,omitempty"`
+	TokenURL     string `yaml:"token_url"`
+	ClientID     string `yaml:"client_id"`
+	ClientSecret string `yaml:"client_secret,omitempty"`
+	Scope        string `yaml:"scope,omitempty"`
+	Username     string `yaml:"username,omitempty"`
+	Password     string `yaml:"password,omitempty"`
+	UsePKCE      bool   `yaml:"use_pkce,omitempty"`
+}
+
+// AWSAuth holds AWS Signature v4 auth configuration in collection files.
+type AWSAuth struct {
+	AccessKeyID    string `yaml:"access_key_id"`
+	SecretAccessKey string `yaml:"secret_access_key"`
+	SessionToken   string `yaml:"session_token,omitempty"`
+	Region         string `yaml:"region"`
+	Service        string `yaml:"service"`
 }
 
 // Body represents a request body.
@@ -109,6 +134,13 @@ type WSMessage struct {
 	Name    string `yaml:"name"`
 	Content string `yaml:"content"`
 	IsJSON  bool   `yaml:"is_json"`
+}
+
+// GRPCConfig holds gRPC-specific settings.
+type GRPCConfig struct {
+	Service  string   `yaml:"service"`
+	Method   string   `yaml:"method"`
+	Metadata []KVPair `yaml:"metadata,omitempty"`
 }
 
 // FlatItem represents a flattened tree item for display.

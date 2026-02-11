@@ -11,11 +11,11 @@ import (
 	"github.com/serdar/gottp/internal/ui/theme"
 )
 
-var authTypes = []string{"none", "basic", "bearer", "apikey"}
+var authTypes = []string{"none", "basic", "bearer", "apikey", "oauth2", "awsv4"}
 
 // AuthSection manages auth configuration with type selector and field inputs.
 type AuthSection struct {
-	authType    string // none, basic, bearer, apikey
+	authType    string // none, basic, bearer, apikey, oauth2, awsv4
 	typeIndex   int
 	cursor      int // 0=type, 1+=fields
 	editing     bool
@@ -34,9 +34,30 @@ type AuthSection struct {
 	apiKeyIn    string // header, query
 	apiKeyInIdx int    // 0=header, 1=query
 
+	// OAuth2
+	oauth2GrantType    string
+	oauth2GrantTypeIdx int
+	oauth2AuthURL      textinput.Model
+	oauth2TokenURL     textinput.Model
+	oauth2ClientID     textinput.Model
+	oauth2ClientSecret textinput.Model
+	oauth2Scope        textinput.Model
+	oauth2Username     textinput.Model
+	oauth2Password     textinput.Model
+	oauth2UsePKCE      bool
+
+	// AWS Sig v4
+	awsAccessKey    textinput.Model
+	awsSecretKey    textinput.Model
+	awsSessionToken textinput.Model
+	awsRegion       textinput.Model
+	awsService      textinput.Model
+
 	width  int
 	styles theme.Styles
 }
+
+var oauth2GrantTypes = []string{"client_credentials", "authorization_code", "password"}
 
 // NewAuthSection creates a new auth section.
 func NewAuthSection(styles theme.Styles) AuthSection {
@@ -49,14 +70,27 @@ func NewAuthSection(styles theme.Styles) AuthSection {
 	}
 
 	return AuthSection{
-		authType: "none",
-		username: mkInput("Username"),
-		password: mkInput("Password"),
-		token:    mkInput("Bearer token"),
-		apiKeyName:  mkInput("Key name (e.g. X-API-Key)"),
-		apiKeyValue: mkInput("Key value"),
-		apiKeyIn:    "header",
-		styles:      styles,
+		authType:           "none",
+		username:           mkInput("Username"),
+		password:           mkInput("Password"),
+		token:              mkInput("Bearer token"),
+		apiKeyName:         mkInput("Key name (e.g. X-API-Key)"),
+		apiKeyValue:        mkInput("Key value"),
+		apiKeyIn:           "header",
+		oauth2GrantType:    "client_credentials",
+		oauth2AuthURL:      mkInput("Authorization URL"),
+		oauth2TokenURL:     mkInput("Token URL"),
+		oauth2ClientID:     mkInput("Client ID"),
+		oauth2ClientSecret: mkInput("Client Secret"),
+		oauth2Scope:        mkInput("Scope (space separated)"),
+		oauth2Username:     mkInput("Username"),
+		oauth2Password:     mkInput("Password"),
+		awsAccessKey:       mkInput("Access Key ID"),
+		awsSecretKey:       mkInput("Secret Access Key"),
+		awsSessionToken:    mkInput("Session Token (optional)"),
+		awsRegion:          mkInput("Region (e.g. us-east-1)"),
+		awsService:         mkInput("Service (e.g. execute-api)"),
+		styles:             styles,
 	}
 }
 
@@ -72,6 +106,18 @@ func (m *AuthSection) SetSize(w int) {
 	m.token.Width = inputW
 	m.apiKeyName.Width = inputW
 	m.apiKeyValue.Width = inputW
+	m.oauth2AuthURL.Width = inputW
+	m.oauth2TokenURL.Width = inputW
+	m.oauth2ClientID.Width = inputW
+	m.oauth2ClientSecret.Width = inputW
+	m.oauth2Scope.Width = inputW
+	m.oauth2Username.Width = inputW
+	m.oauth2Password.Width = inputW
+	m.awsAccessKey.Width = inputW
+	m.awsSecretKey.Width = inputW
+	m.awsSessionToken.Width = inputW
+	m.awsRegion.Width = inputW
+	m.awsService.Width = inputW
 }
 
 // Editing returns whether any field is being edited.
@@ -99,6 +145,32 @@ func (m AuthSection) BuildAuth() *protocol.AuthConfig {
 			APIKey:   m.apiKeyName.Value(),
 			APIValue: m.apiKeyValue.Value(),
 			APIIn:    m.apiKeyIn,
+		}
+	case "oauth2":
+		return &protocol.AuthConfig{
+			Type: "oauth2",
+			OAuth2: &protocol.OAuth2AuthConfig{
+				GrantType:    m.oauth2GrantType,
+				AuthURL:      m.oauth2AuthURL.Value(),
+				TokenURL:     m.oauth2TokenURL.Value(),
+				ClientID:     m.oauth2ClientID.Value(),
+				ClientSecret: m.oauth2ClientSecret.Value(),
+				Scope:        m.oauth2Scope.Value(),
+				Username:     m.oauth2Username.Value(),
+				Password:     m.oauth2Password.Value(),
+				UsePKCE:      m.oauth2UsePKCE,
+			},
+		}
+	case "awsv4":
+		return &protocol.AuthConfig{
+			Type: "awsv4",
+			AWSAuth: &protocol.AWSAuthConfig{
+				AccessKeyID:    m.awsAccessKey.Value(),
+				SecretAccessKey: m.awsSecretKey.Value(),
+				SessionToken:   m.awsSessionToken.Value(),
+				Region:         m.awsRegion.Value(),
+				Service:        m.awsService.Value(),
+			},
 		}
 	default:
 		return nil
@@ -141,6 +213,32 @@ func (m *AuthSection) LoadAuth(auth *collection.Auth) {
 				m.apiKeyIn = "header"
 			}
 		}
+	case "oauth2":
+		if auth.OAuth2 != nil {
+			m.oauth2GrantType = auth.OAuth2.GrantType
+			for i, gt := range oauth2GrantTypes {
+				if gt == auth.OAuth2.GrantType {
+					m.oauth2GrantTypeIdx = i
+					break
+				}
+			}
+			m.oauth2AuthURL.SetValue(auth.OAuth2.AuthURL)
+			m.oauth2TokenURL.SetValue(auth.OAuth2.TokenURL)
+			m.oauth2ClientID.SetValue(auth.OAuth2.ClientID)
+			m.oauth2ClientSecret.SetValue(auth.OAuth2.ClientSecret)
+			m.oauth2Scope.SetValue(auth.OAuth2.Scope)
+			m.oauth2Username.SetValue(auth.OAuth2.Username)
+			m.oauth2Password.SetValue(auth.OAuth2.Password)
+			m.oauth2UsePKCE = auth.OAuth2.UsePKCE
+		}
+	case "awsv4":
+		if auth.AWSAuth != nil {
+			m.awsAccessKey.SetValue(auth.AWSAuth.AccessKeyID)
+			m.awsSecretKey.SetValue(auth.AWSAuth.SecretAccessKey)
+			m.awsSessionToken.SetValue(auth.AWSAuth.SessionToken)
+			m.awsRegion.SetValue(auth.AWSAuth.Region)
+			m.awsService.SetValue(auth.AWSAuth.Service)
+		}
 	}
 }
 
@@ -171,6 +269,8 @@ func (m AuthSection) updateNormal(msg tea.Msg) (AuthSection, tea.Cmd) {
 				m.typeIndex = (m.typeIndex + 1) % len(authTypes)
 				m.authType = authTypes[m.typeIndex]
 				m.cursor = 0
+			} else if m.isToggleField() {
+				m.handleToggle()
 			} else {
 				// Start editing the focused field
 				m.startEditing()
@@ -181,28 +281,13 @@ func (m AuthSection) updateNormal(msg tea.Msg) (AuthSection, tea.Cmd) {
 				m.typeIndex = (m.typeIndex - 1 + len(authTypes)) % len(authTypes)
 				m.authType = authTypes[m.typeIndex]
 			}
-			// For apikey "in" field
-			if m.authType == "apikey" && m.cursor == 3 {
-				m.apiKeyInIdx = (m.apiKeyInIdx + 1) % 2
-				if m.apiKeyInIdx == 0 {
-					m.apiKeyIn = "header"
-				} else {
-					m.apiKeyIn = "query"
-				}
-			}
+			m.handleLeftRight()
 		case "l", "right":
 			if m.cursor == 0 {
 				m.typeIndex = (m.typeIndex + 1) % len(authTypes)
 				m.authType = authTypes[m.typeIndex]
 			}
-			if m.authType == "apikey" && m.cursor == 3 {
-				m.apiKeyInIdx = (m.apiKeyInIdx + 1) % 2
-				if m.apiKeyInIdx == 0 {
-					m.apiKeyIn = "header"
-				} else {
-					m.apiKeyIn = "query"
-				}
-			}
+			m.handleLeftRight()
 		}
 	}
 	return m, nil
@@ -237,8 +322,50 @@ func (m AuthSection) updateEditing(msg tea.Msg) (AuthSection, tea.Cmd) {
 		} else if m.cursor == 2 {
 			m.apiKeyValue, cmd = m.apiKeyValue.Update(msg)
 		}
+	case "oauth2":
+		cmd = m.updateOAuth2Editing(msg)
+	case "awsv4":
+		cmd = m.updateAWSEditing(msg)
 	}
 	return m, cmd
+}
+
+func (m *AuthSection) updateOAuth2Editing(msg tea.Msg) tea.Cmd {
+	var cmd tea.Cmd
+	switch m.cursor {
+	case 2:
+		m.oauth2AuthURL, cmd = m.oauth2AuthURL.Update(msg)
+	case 3:
+		m.oauth2TokenURL, cmd = m.oauth2TokenURL.Update(msg)
+	case 4:
+		m.oauth2ClientID, cmd = m.oauth2ClientID.Update(msg)
+	case 5:
+		m.oauth2ClientSecret, cmd = m.oauth2ClientSecret.Update(msg)
+	case 6:
+		m.oauth2Scope, cmd = m.oauth2Scope.Update(msg)
+	case 7:
+		m.oauth2Username, cmd = m.oauth2Username.Update(msg)
+	case 8:
+		m.oauth2Password, cmd = m.oauth2Password.Update(msg)
+	}
+	return cmd
+}
+
+func (m *AuthSection) updateAWSEditing(msg tea.Msg) tea.Cmd {
+	var cmd tea.Cmd
+	switch m.cursor {
+	case 1:
+		m.awsAccessKey, cmd = m.awsAccessKey.Update(msg)
+	case 2:
+		m.awsSecretKey, cmd = m.awsSecretKey.Update(msg)
+	case 3:
+		m.awsSessionToken, cmd = m.awsSessionToken.Update(msg)
+	case 4:
+		m.awsRegion, cmd = m.awsRegion.Update(msg)
+	case 5:
+		m.awsService, cmd = m.awsService.Update(msg)
+	}
+	return cmd
 }
 
 func (m *AuthSection) startEditing() {
@@ -265,6 +392,56 @@ func (m *AuthSection) startEditing() {
 			m.apiKeyValue.Focus()
 			m.apiKeyValue.CursorEnd()
 		}
+	case "oauth2":
+		m.startOAuth2Editing()
+	case "awsv4":
+		m.startAWSEditing()
+	}
+}
+
+func (m *AuthSection) startOAuth2Editing() {
+	switch m.cursor {
+	case 2:
+		m.oauth2AuthURL.Focus()
+		m.oauth2AuthURL.CursorEnd()
+	case 3:
+		m.oauth2TokenURL.Focus()
+		m.oauth2TokenURL.CursorEnd()
+	case 4:
+		m.oauth2ClientID.Focus()
+		m.oauth2ClientID.CursorEnd()
+	case 5:
+		m.oauth2ClientSecret.Focus()
+		m.oauth2ClientSecret.CursorEnd()
+	case 6:
+		m.oauth2Scope.Focus()
+		m.oauth2Scope.CursorEnd()
+	case 7:
+		m.oauth2Username.Focus()
+		m.oauth2Username.CursorEnd()
+	case 8:
+		m.oauth2Password.Focus()
+		m.oauth2Password.CursorEnd()
+	}
+}
+
+func (m *AuthSection) startAWSEditing() {
+	switch m.cursor {
+	case 1:
+		m.awsAccessKey.Focus()
+		m.awsAccessKey.CursorEnd()
+	case 2:
+		m.awsSecretKey.Focus()
+		m.awsSecretKey.CursorEnd()
+	case 3:
+		m.awsSessionToken.Focus()
+		m.awsSessionToken.CursorEnd()
+	case 4:
+		m.awsRegion.Focus()
+		m.awsRegion.CursorEnd()
+	case 5:
+		m.awsService.Focus()
+		m.awsService.CursorEnd()
 	}
 }
 
@@ -274,6 +451,68 @@ func (m *AuthSection) blurAll() {
 	m.token.Blur()
 	m.apiKeyName.Blur()
 	m.apiKeyValue.Blur()
+	m.oauth2AuthURL.Blur()
+	m.oauth2TokenURL.Blur()
+	m.oauth2ClientID.Blur()
+	m.oauth2ClientSecret.Blur()
+	m.oauth2Scope.Blur()
+	m.oauth2Username.Blur()
+	m.oauth2Password.Blur()
+	m.awsAccessKey.Blur()
+	m.awsSecretKey.Blur()
+	m.awsSessionToken.Blur()
+	m.awsRegion.Blur()
+	m.awsService.Blur()
+}
+
+func (m AuthSection) isToggleField() bool {
+	switch m.authType {
+	case "apikey":
+		return m.cursor == 3 // Send In selector
+	case "oauth2":
+		return m.cursor == 1 || m.cursor == 9 // grant type selector, PKCE toggle
+	}
+	return false
+}
+
+func (m *AuthSection) handleToggle() {
+	switch m.authType {
+	case "apikey":
+		if m.cursor == 3 {
+			m.apiKeyInIdx = (m.apiKeyInIdx + 1) % 2
+			if m.apiKeyInIdx == 0 {
+				m.apiKeyIn = "header"
+			} else {
+				m.apiKeyIn = "query"
+			}
+		}
+	case "oauth2":
+		if m.cursor == 1 {
+			m.oauth2GrantTypeIdx = (m.oauth2GrantTypeIdx + 1) % len(oauth2GrantTypes)
+			m.oauth2GrantType = oauth2GrantTypes[m.oauth2GrantTypeIdx]
+		} else if m.cursor == 9 {
+			m.oauth2UsePKCE = !m.oauth2UsePKCE
+		}
+	}
+}
+
+func (m *AuthSection) handleLeftRight() {
+	switch m.authType {
+	case "apikey":
+		if m.cursor == 3 {
+			m.apiKeyInIdx = (m.apiKeyInIdx + 1) % 2
+			if m.apiKeyInIdx == 0 {
+				m.apiKeyIn = "header"
+			} else {
+				m.apiKeyIn = "query"
+			}
+		}
+	case "oauth2":
+		if m.cursor == 1 {
+			m.oauth2GrantTypeIdx = (m.oauth2GrantTypeIdx + 1) % len(oauth2GrantTypes)
+			m.oauth2GrantType = oauth2GrantTypes[m.oauth2GrantTypeIdx]
+		}
+	}
 }
 
 func (m AuthSection) maxCursor() int {
@@ -284,6 +523,10 @@ func (m AuthSection) maxCursor() int {
 		return 1 // type, token
 	case "apikey":
 		return 3 // type, key, value, in
+	case "oauth2":
+		return 9 // type, grant_type, auth_url, token_url, client_id, client_secret, scope, username, password, pkce
+	case "awsv4":
+		return 5 // type, access_key, secret_key, session_token, region, service
 	default:
 		return 0 // none: just type
 	}
@@ -343,6 +586,50 @@ func (m AuthSection) View() string {
 			}
 		}
 		lines = append(lines, inLabel+strings.Join(inParts, " "))
+
+	case "oauth2":
+		lines = append(lines, "")
+		// Grant type selector
+		prefix := "  "
+		if m.cursor == 1 {
+			prefix = "> "
+		}
+		gtLabel := prefix + m.styles.Key.Render(lipgloss.NewStyle().Width(10).Render("Grant")) + " "
+		var gtParts []string
+		for i, gt := range oauth2GrantTypes {
+			if i == m.oauth2GrantTypeIdx {
+				gtParts = append(gtParts, m.styles.TabActive.Render(gt))
+			} else {
+				gtParts = append(gtParts, m.styles.TabInactive.Render(gt))
+			}
+		}
+		lines = append(lines, gtLabel+strings.Join(gtParts, " "))
+		lines = append(lines, m.renderField("Auth URL", m.oauth2AuthURL, 2))
+		lines = append(lines, m.renderField("Token URL", m.oauth2TokenURL, 3))
+		lines = append(lines, m.renderField("Client ID", m.oauth2ClientID, 4))
+		lines = append(lines, m.renderField("Secret", m.oauth2ClientSecret, 5))
+		lines = append(lines, m.renderField("Scope", m.oauth2Scope, 6))
+		lines = append(lines, m.renderField("Username", m.oauth2Username, 7))
+		lines = append(lines, m.renderField("Password", m.oauth2Password, 8))
+		// PKCE toggle
+		pkcePrefix := "  "
+		if m.cursor == 9 {
+			pkcePrefix = "> "
+		}
+		pkceVal := "off"
+		if m.oauth2UsePKCE {
+			pkceVal = "on"
+		}
+		pkceLabel := pkcePrefix + m.styles.Key.Render(lipgloss.NewStyle().Width(10).Render("PKCE")) + " "
+		lines = append(lines, pkceLabel+m.styles.TabActive.Render(pkceVal))
+
+	case "awsv4":
+		lines = append(lines, "")
+		lines = append(lines, m.renderField("Access Key", m.awsAccessKey, 1))
+		lines = append(lines, m.renderField("Secret Key", m.awsSecretKey, 2))
+		lines = append(lines, m.renderField("Session", m.awsSessionToken, 3))
+		lines = append(lines, m.renderField("Region", m.awsRegion, 4))
+		lines = append(lines, m.renderField("Service", m.awsService, 5))
 	}
 
 	return strings.Join(lines, "\n")

@@ -28,19 +28,59 @@ type Request struct {
 	GraphQLQuery     string
 	GraphQLVariables string
 
+	// gRPC-specific
+	GRPCService string
+	GRPCMethod  string
+	Metadata    map[string]string
+
+	// Scripting
+	PreScript  string
+	PostScript string
+
 	// Timeout
 	Timeout time.Duration
 }
 
 // AuthConfig holds authentication settings.
 type AuthConfig struct {
-	Type     string // none, basic, bearer, apikey
+	Type     string // none, basic, bearer, apikey, oauth2, awsv4
 	Username string
 	Password string
 	Token    string
 	APIKey   string
 	APIValue string
 	APIIn    string // header, query
+
+	// OAuth2
+	OAuth2 *OAuth2AuthConfig
+
+	// AWS Signature v4
+	AWSAuth *AWSAuthConfig
+}
+
+// OAuth2AuthConfig holds OAuth2-specific auth settings.
+type OAuth2AuthConfig struct {
+	GrantType    string // authorization_code, client_credentials, password
+	AuthURL      string
+	TokenURL     string
+	ClientID     string
+	ClientSecret string
+	Scope        string
+	Username     string
+	Password     string
+	UsePKCE      bool
+	AccessToken  string
+	RefreshToken string
+	TokenExpiry  time.Time
+}
+
+// AWSAuthConfig holds AWS Signature v4 auth settings.
+type AWSAuthConfig struct {
+	AccessKeyID    string
+	SecretAccessKey string
+	SessionToken   string
+	Region         string
+	Service        string
 }
 
 // Response is the unified response type.

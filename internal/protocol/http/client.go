@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/serdar/gottp/internal/auth/awsv4"
 	"github.com/serdar/gottp/internal/protocol"
 )
 
@@ -90,7 +91,7 @@ func (c *Client) Execute(ctx context.Context, req *protocol.Request) (*protocol.
 	}
 
 	// Apply auth
-	applyAuth(httpReq, req.Auth)
+	applyAuth(httpReq, req.Auth, req.Body)
 
 	// Set timeout
 	timeout := req.Timeout
@@ -132,7 +133,7 @@ func (c *Client) Execute(ctx context.Context, req *protocol.Request) (*protocol.
 	}, nil
 }
 
-func applyAuth(req *http.Request, auth *protocol.AuthConfig) {
+func applyAuth(req *http.Request, auth *protocol.AuthConfig, body []byte) {
 	if auth == nil || auth.Type == "none" {
 		return
 	}
@@ -151,6 +152,21 @@ func applyAuth(req *http.Request, auth *protocol.AuthConfig) {
 			req.URL.RawQuery = q.Encode()
 		} else {
 			req.Header.Set(auth.APIKey, auth.APIValue)
+		}
+	case "oauth2":
+		if auth.OAuth2 != nil && auth.OAuth2.AccessToken != "" {
+			req.Header.Set("Authorization", "Bearer "+auth.OAuth2.AccessToken)
+		}
+	case "awsv4":
+		if auth.AWSAuth != nil {
+			cfg := awsv4.AWSConfig{
+				AccessKeyID:    auth.AWSAuth.AccessKeyID,
+				SecretAccessKey: auth.AWSAuth.SecretAccessKey,
+				SessionToken:   auth.AWSAuth.SessionToken,
+				Region:         auth.AWSAuth.Region,
+				Service:        auth.AWSAuth.Service,
+			}
+			awsv4.Sign(req, body, cfg, time.Now())
 		}
 	}
 }

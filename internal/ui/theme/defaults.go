@@ -1,6 +1,11 @@
 package theme
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"os"
+	"path/filepath"
+
+	"github.com/charmbracelet/lipgloss"
+)
 
 // CatppuccinMocha is the default dark theme.
 var CatppuccinMocha = Theme{
@@ -39,5 +44,25 @@ var CatppuccinMocha = Theme{
 
 // Default returns the default theme.
 func Default() Theme {
+	return CatppuccinMocha
+}
+
+// Resolve looks up a theme by name: catalog -> custom themes -> fallback to Mocha.
+func Resolve(name string) Theme {
+	// Try built-in catalog
+	if t, ok := Get(name); ok {
+		return t
+	}
+
+	// Try custom themes from ~/.config/gottp/themes/
+	home, err := os.UserHomeDir()
+	if err == nil {
+		customDir := filepath.Join(home, ".config", "gottp", "themes")
+		customs := LoadCustomThemes(customDir)
+		if t, ok := customs[normalizeKey(name)]; ok {
+			return t
+		}
+	}
+
 	return CatppuccinMocha
 }

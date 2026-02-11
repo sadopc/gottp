@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What is gottp?
 
-A Postman/Insomnia-like TUI API client built in Go with Bubble Tea. Three-panel layout (sidebar, editor, response) with vim-style modal editing, collections stored as YAML, and Catppuccin Mocha theme. Supports environment variable interpolation, auth (basic/bearer/apikey), request history (SQLite), cURL import/export, response search, and jump navigation.
+A Postman/Insomnia-like TUI API client built in Go with Bubble Tea. Three-panel layout (sidebar, editor, response) with vim-style modal editing, collections stored as YAML, and multiple theme support (Catppuccin variants, Nord, Dracula, Gruvbox, Tokyo Night). Supports HTTP, GraphQL, WebSocket, and gRPC protocols with environment variable interpolation, auth (basic/bearer/apikey/oauth2/awsv4), request history (SQLite), cURL import/export, Postman/Insomnia/OpenAPI import, response diffing, pre/post-request JavaScript scripting, and jump navigation.
 
 ## Build & Test Commands
 
@@ -38,18 +38,22 @@ Environment files: place `environments.yaml` next to the collection file. The fi
 | `internal/app/` | Root model, global keybindings, orchestration |
 | `internal/ui/msgs/` | Shared message types (breaks import cycles) |
 | `internal/ui/panels/sidebar/` | Collection tree + history list (two-section navigation) |
-| `internal/ui/panels/editor/` | Request editor (HTTPForm with method/URL/params/headers/auth/body) |
-| `internal/ui/panels/response/` | Response viewer (body with syntax highlighting + search, headers, cookies, timing) |
+| `internal/ui/panels/editor/` | Multi-protocol request editor (HTTPForm, GraphQLForm, WebSocketForm, GRPCForm) with ProtocolSelector |
+| `internal/ui/panels/response/` | Response viewer (body/headers/cookies/timing/diff/console for HTTP; messages/headers/timing for WebSocket) |
 | `internal/ui/components/` | Reusable: KVTable, TabBar, StatusBar, CommandPalette, Help, Modal, Toast, JumpOverlay |
-| `internal/ui/theme/` | Catppuccin Mocha styles, lipgloss style definitions |
+| `internal/ui/theme/` | Theme catalog (8+ themes), lipgloss style definitions, custom YAML theme loader |
 | `internal/ui/layout/` | Responsive three-panel layout calculator |
-| `internal/protocol/` | Protocol interface + HTTP client implementation |
+| `internal/protocol/` | Protocol interface, Registry, HTTP/GraphQL/WebSocket/gRPC clients |
 | `internal/core/collection/` | YAML collection model, loader, saver |
 | `internal/core/environment/` | Environment variables, `{{var}}` interpolation via `Resolve()` |
 | `internal/core/history/` | SQLite-backed request history (Entry, Store) at `~/.local/share/gottp/history.db` |
 | `internal/core/state/` | Central state (tabs, active collection, active env) |
 | `internal/export/` | curl export (`AsCurl()`) |
-| `internal/import/curl/` | curl import parser (`ParseCurl()`) with shell tokenizer |
+| `internal/import/` | Format auto-detection, curl/Postman/Insomnia/OpenAPI importers |
+| `internal/auth/oauth2/` | OAuth2 flows (auth code w/ PKCE, client credentials, password grant) |
+| `internal/auth/awsv4/` | AWS Signature v4 request signing |
+| `internal/diff/` | Myers diff algorithm for response diffing |
+| `internal/scripting/` | JavaScript pre/post-request scripting via goja engine |
 | `internal/config/` | App config from `~/.config/gottp/config.yaml` |
 
 ### Message Routing in app.go
@@ -66,7 +70,7 @@ type Protocol interface {
 }
 ```
 
-Currently only HTTP is implemented. GraphQL, gRPC, WebSocket are planned.
+Implemented: HTTP, GraphQL, WebSocket, gRPC. The `Registry` dispatches requests by `req.Protocol` field. Register new protocols via `registry.Register(client)` in `app.New()`.
 
 ### UI Modes
 
@@ -80,9 +84,28 @@ Currently only HTTP is implemented. GraphQL, gRPC, WebSocket are planned.
 
 `saveCollection()` syncs form state back to `store.ActiveRequest()` (method, URL, params, headers, body, auth) before writing YAML.
 
+### Multi-Protocol Editor
+
+`editor.Model` wraps four protocol-specific forms (`HTTPForm`, `GraphQLForm`, `WebSocketForm`, `GRPCForm`) and a `ProtocolSelector` widget. `Ctrl+P` cycles protocols. All form access goes through delegation methods on `editor.Model`:
+- `BuildRequest()`, `GetParams()`, `GetHeaders()`, `GetBodyContent()`, `SetBody()`, `BuildAuth()`, `FocusURL()` — each delegates to the active form
+- `LoadRequest()` auto-detects protocol from collection request fields (GraphQL/GRPC/WebSocket config)
+- **Never use `editor.Form()` directly** — use the delegation methods instead
+
+### Response Panel Modes
+
+The response panel has two display modes:
+- **HTTP mode**: tabs = Body, Headers, Cookies, Timing, Diff, Console
+- **WebSocket mode**: tabs = Messages, Headers, Timing
+
+`SetMode(proto)` switches between them. The Console tab shows JavaScript script output (logs + test results).
+
 ### Auth Section
 
-`AuthSection` in `editor/auth_section.go` supports none/basic/bearer/apikey. Vim-style j/k navigation, h/l or space to cycle type, enter to edit fields. `BuildAuth()` returns `*protocol.AuthConfig`, `LoadAuth()` populates from `*collection.Auth`.
+`AuthSection` in `editor/auth_section.go` supports none/basic/bearer/apikey/oauth2/awsv4. Vim-style j/k navigation, h/l or space to cycle type, enter to edit fields. `BuildAuth()` returns `*protocol.AuthConfig`, `LoadAuth()` populates from `*collection.Auth`.
+
+### Scripting Engine
+
+`internal/scripting/` provides a JavaScript (ES5.1+) engine via `goja`. Pre-scripts can mutate the request (URL, headers, params, body); post-scripts have read-only access to the response. The `gottp` global object provides `setEnvVar()`, `getEnvVar()`, `log()`, `test(name, fn)`, `assert()`, `base64encode/decode()`, `sha256()`, `uuid()`. Each execution uses a fresh runtime with configurable timeout (default 5s).
 
 ### History
 
@@ -97,6 +120,8 @@ SQLite store at `~/.local/share/gottp/history.db` via `modernc.org/sqlite` (pure
 - Environment files use `environments.yaml` (placed next to collection)
 - HTTP method colors: GET=green, POST=yellow, PUT=blue, PATCH=peach, DELETE=red (Catppuccin palette)
 - `app.New()` signature: `New(col *collection.Collection, colPath string, cfg config.Config) App`
+- Sub-models that need theme colors (e.g., DiffModel, ConsoleModel, WSLogModel) take both `theme.Theme` and `theme.Styles` in their constructors; store `th` for colors and `styles` for pre-computed lipgloss styles
+- Protocol-specific editor forms (GraphQLForm, etc.) follow the same patterns as HTTPForm: sub-tabs, `BuildRequest()`, `LoadRequest()`, `Editing() bool`
 
 ## Known Gotchas
 

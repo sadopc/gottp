@@ -24,10 +24,16 @@ var defaultCommands = []paletteCommand{
 	{Name: "Close Tab", Shortcut: "Ctrl+W", Msg: msgs.CloseTabMsg{}},
 	{Name: "Save Request", Shortcut: "Ctrl+S", Msg: msgs.SaveRequestMsg{}},
 	{Name: "Switch Environment", Shortcut: "Ctrl+E", Msg: msgs.SwitchEnvMsg{}},
+	{Name: "Switch Theme", Shortcut: "", Msg: msgs.SwitchThemeMsg{}},
 	{Name: "Toggle Sidebar", Shortcut: "b", Msg: msgs.ToggleSidebarMsg{}},
 	{Name: "Help", Shortcut: "?", Msg: msgs.ShowHelpMsg{}},
 	{Name: "Copy as cURL", Shortcut: "", Msg: msgs.CopyAsCurlMsg{}},
 	{Name: "Import from cURL", Shortcut: "", Msg: msgs.ImportCurlMsg{}},
+	{Name: "Import from Postman", Shortcut: "", Msg: msgs.ImportFileMsg{Path: "postman"}},
+	{Name: "Import from Insomnia", Shortcut: "", Msg: msgs.ImportFileMsg{Path: "insomnia"}},
+	{Name: "Import from OpenAPI", Shortcut: "", Msg: msgs.ImportFileMsg{Path: "openapi"}},
+	{Name: "Set Response as Baseline", Shortcut: "", Msg: msgs.SetBaselineMsg{}},
+	{Name: "Clear Baseline", Shortcut: "", Msg: msgs.ClearBaselineMsg{}},
 	{Name: "Edit Body in $EDITOR", Shortcut: "E", Msg: msgs.OpenEditorMsg{}},
 	{Name: "Quit", Shortcut: "Ctrl+C", Msg: tea.Quit()},
 }
@@ -86,6 +92,24 @@ func (m *CommandPalette) OpenEnvPicker(envNames []string) {
 	m.Visible = true
 	m.input.SetValue("")
 	m.input.Placeholder = "Select environment..."
+	m.input.Focus()
+	m.commands = cmds
+	m.filtered = cmds
+	m.cursor = 0
+}
+
+// OpenThemePicker opens the palette in theme selection mode.
+func (m *CommandPalette) OpenThemePicker(themeNames []string) {
+	cmds := make([]paletteCommand, len(themeNames))
+	for i, name := range themeNames {
+		cmds[i] = paletteCommand{
+			Name: name,
+			Msg:  msgs.SwitchThemeMsg{Name: name},
+		}
+	}
+	m.Visible = true
+	m.input.SetValue("")
+	m.input.Placeholder = "Select theme..."
 	m.input.Focus()
 	m.commands = cmds
 	m.filtered = cmds

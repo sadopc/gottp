@@ -9,6 +9,7 @@ type Config struct {
 	DefaultTimeout time.Duration `yaml:"default_timeout"`
 	Editor         string        `yaml:"editor"`
 	Pager          string        `yaml:"pager"`
+	ScriptTimeout  time.Duration `yaml:"script_timeout"`
 }
 
 // DefaultConfig returns the default configuration.
@@ -19,5 +20,6 @@ func DefaultConfig() Config {
 		DefaultTimeout: 30 * time.Second,
 		Editor:         "",
 		Pager:          "",
+		ScriptTimeout:  5 * time.Second,
 	}
 }
