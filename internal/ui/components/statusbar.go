@@ -23,6 +23,7 @@ type StatusBar struct {
 	contentType string
 	mode        msgs.AppMode
 	message     string
+	envName     string
 	width       int
 	theme       theme.Theme
 	styles      theme.Styles
@@ -58,6 +59,11 @@ func (m *StatusBar) SetWidth(w int) {
 // SetMessage sets a temporary status message.
 func (m *StatusBar) SetMessage(text string) {
 	m.message = text
+}
+
+// SetEnv sets the active environment name displayed on the right.
+func (m *StatusBar) SetEnv(name string) {
+	m.envName = name
 }
 
 // Init implements tea.Model.
@@ -134,11 +140,21 @@ func (m StatusBar) View() string {
 		Bold(true).
 		Render("[" + m.mode.String() + "]")
 
-	// Right: hints
-	hint := lipgloss.NewStyle().
+	// Right: env + hints
+	var rightParts []string
+	if m.envName != "" {
+		envStr := lipgloss.NewStyle().
+			Foreground(m.theme.Teal).
+			Background(m.theme.Surface).
+			Bold(true).
+			Render("[" + m.envName + "]")
+		rightParts = append(rightParts, envStr)
+	}
+	rightParts = append(rightParts, lipgloss.NewStyle().
 		Foreground(m.theme.Muted).
 		Background(m.theme.Surface).
-		Render("?:help  Ctrl+K:command")
+		Render("?:help  Ctrl+K:command"))
+	hint := strings.Join(rightParts, " ")
 
 	leftWidth := lipgloss.Width(left)
 	centerWidth := lipgloss.Width(modeStr)

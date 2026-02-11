@@ -17,15 +17,17 @@ type subTab int
 const (
 	tabBody subTab = iota
 	tabHeaders
+	tabCookies
 	tabTiming
 )
 
-var subTabLabels = []string{"Body", "Headers", "Timing"}
+var subTabLabels = []string{"Body", "Headers", "Cookies", "Timing"}
 
-// Model is the response panel container wrapping body, headers, and timing.
+// Model is the response panel container wrapping body, headers, cookies, and timing.
 type Model struct {
 	body    BodyModel
 	headers HeadersModel
+	cookies CookiesModel
 	timing  TimingModel
 	spinner spinner.Model
 
@@ -50,6 +52,7 @@ func New(t theme.Theme, s theme.Styles) Model {
 	return Model{
 		body:    NewBodyModel(s),
 		headers: NewHeadersModel(s),
+		cookies: NewCookiesModel(s),
 		timing:  NewTimingModel(s),
 		spinner: sp,
 		styles:  s,
@@ -70,6 +73,7 @@ func (m *Model) SetResponse(resp *protocol.Response) {
 
 	m.body.SetContent(resp.Body, resp.ContentType)
 	m.headers.SetHeaders(resp.Headers)
+	m.cookies.SetHeaders(resp.Headers)
 	m.timing.SetResponse(resp)
 }
 
@@ -100,6 +104,7 @@ func (m *Model) SetSize(w, h int) {
 
 	m.body.SetSize(innerW, innerH)
 	m.headers.SetSize(innerW, innerH)
+	m.cookies.SetSize(innerW, innerH)
 	m.timing.SetSize(innerW, innerH)
 }
 
@@ -128,6 +133,9 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			m.active = tabHeaders
 			return m, nil
 		case "3":
+			m.active = tabCookies
+			return m, nil
+		case "4":
 			m.active = tabTiming
 			return m, nil
 		}
@@ -146,6 +154,8 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		m.body, cmd = m.body.Update(msg)
 	case tabHeaders:
 		m.headers, cmd = m.headers.Update(msg)
+	case tabCookies:
+		m.cookies, cmd = m.cookies.Update(msg)
 	case tabTiming:
 		m.timing, cmd = m.timing.Update(msg)
 	}
@@ -206,6 +216,8 @@ func (m Model) renderResponse(w, h int) string {
 		body = m.body.View()
 	case tabHeaders:
 		body = m.headers.View()
+	case tabCookies:
+		body = m.cookies.View()
 	case tabTiming:
 		body = m.timing.View()
 	}

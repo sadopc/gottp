@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/serdar/gottp/internal/app"
+	"github.com/serdar/gottp/internal/config"
 	"github.com/serdar/gottp/internal/core/collection"
 	"github.com/serdar/gottp/pkg/version"
 )
@@ -48,7 +49,8 @@ func main() {
 		}
 	}
 
-	model := app.New(col, colPath)
+	cfg := config.Load()
+	model := app.New(col, colPath, cfg)
 	p := tea.NewProgram(
 		model,
 		tea.WithAltScreen(),

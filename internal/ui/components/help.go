@@ -35,6 +35,9 @@ var helpSections = []helpSection{
 			{"Ctrl+S", "Save request"},
 			{"Ctrl+E", "Switch environment"},
 			{"[ / ]", "Previous / next tab"},
+			{"f", "Jump mode (quick navigation)"},
+			{"E", "Edit body in $EDITOR"},
+			{"S", "Send request (normal mode)"},
 		},
 	},
 	{
@@ -51,15 +54,17 @@ var helpSections = []helpSection{
 		Bindings: []helpBinding{
 			{"i", "Enter insert mode"},
 			{"Esc", "Return to normal mode"},
-			{"1-5", "Switch editor tabs (URL, Params, Headers, Auth, Body)"},
+			{"1-4", "Switch editor tabs (Params, Headers, Auth, Body)"},
 		},
 	},
 	{
 		Title: "Response",
 		Bindings: []helpBinding{
 			{"j / k", "Scroll down / up"},
-			{"1-3", "Switch response tabs (Body, Headers, Info)"},
-			{"y", "Copy response body"},
+			{"1-4", "Switch response tabs (Body, Headers, Cookies, Timing)"},
+			{"/ / Ctrl+F", "Search in response body"},
+			{"n / N", "Next / previous search match"},
+			{"w", "Toggle word wrap"},
 		},
 	},
 }

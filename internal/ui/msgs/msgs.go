@@ -129,3 +129,22 @@ type CollectionLoadedMsg struct {
 type SwitchEnvMsg struct {
 	Name string
 }
+
+// CopyAsCurlMsg triggers copying the current request as cURL.
+type CopyAsCurlMsg struct{}
+
+// ImportCurlMsg triggers importing a request from clipboard cURL.
+type ImportCurlMsg struct{}
+
+// OpenEditorMsg triggers opening $EDITOR for body editing.
+type OpenEditorMsg struct{}
+
+// EditorDoneMsg is emitted when $EDITOR exits with new content.
+type EditorDoneMsg struct {
+	Content string
+}
+
+// HistorySelectedMsg is emitted when a history entry is selected.
+type HistorySelectedMsg struct {
+	ID int64
+}

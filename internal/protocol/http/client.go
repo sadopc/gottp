@@ -33,6 +33,11 @@ func New() *Client {
 	}
 }
 
+// SetTimeout sets the default client timeout.
+func (c *Client) SetTimeout(d time.Duration) {
+	c.httpClient.Timeout = d
+}
+
 func (c *Client) Name() string { return "http" }
 
 func (c *Client) Validate(req *protocol.Request) error {

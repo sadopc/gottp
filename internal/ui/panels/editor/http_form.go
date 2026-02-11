@@ -36,6 +36,7 @@ type HTTPForm struct {
 	activeTab SubTab
 	params    components.KVTable
 	headers   components.KVTable
+	auth      AuthSection
 	body      textarea.Model
 
 	// Focus tracking: 0=method, 1=url, 2=sub-tab content
@@ -76,6 +77,7 @@ func NewHTTPForm(styles theme.Styles) HTTPForm {
 		activeTab:   TabParams,
 		params:      params,
 		headers:     headers,
+		auth:        NewAuthSection(styles),
 		body:        bodyArea,
 		styles:      styles,
 		width:       60,
@@ -100,6 +102,7 @@ func (m *HTTPForm) SetSize(w, h int) {
 	}
 	m.params.SetSize(contentW)
 	m.headers.SetSize(contentW)
+	m.auth.SetSize(contentW)
 
 	bodyH := h - 6 // url bar + tab bar + padding
 	if bodyH < 3 {
@@ -132,6 +135,8 @@ func (m HTTPForm) Editing() bool {
 			return m.params.Editing()
 		case TabHeaders:
 			return m.headers.Editing()
+		case TabAuth:
+			return m.auth.Editing()
 		case TabBody:
 			return m.body.Focused()
 		}
@@ -248,6 +253,13 @@ func (m HTTPForm) updateEditing(msg tea.KeyMsg) (HTTPForm, tea.Cmd) {
 			var cmd tea.Cmd
 			m.headers, cmd = m.headers.Update(msg)
 			return m, cmd
+		case TabAuth:
+			if msg.String() == "esc" && !m.auth.Editing() {
+				return m, nil
+			}
+			var cmd tea.Cmd
+			m.auth, cmd = m.auth.Update(msg)
+			return m, cmd
 		case TabBody:
 			switch msg.String() {
 			case "esc":
@@ -272,6 +284,10 @@ func (m *HTTPForm) enterTabContent() (HTTPForm, tea.Cmd) {
 		var cmd tea.Cmd
 		m.headers, cmd = m.headers.Update(tea.KeyMsg{Type: tea.KeyEnter})
 		return *m, cmd
+	case TabAuth:
+		var cmd tea.Cmd
+		m.auth, cmd = m.auth.Update(tea.KeyMsg{Type: tea.KeyEnter})
+		return *m, cmd
 	case TabBody:
 		cmd := m.body.Focus()
 		return *m, cmd
@@ -294,6 +310,12 @@ func (m *HTTPForm) updateTabContent(msg tea.Msg) []tea.Cmd {
 		if cmd != nil {
 			cmds = append(cmds, cmd)
 		}
+	case TabAuth:
+		var cmd tea.Cmd
+		m.auth, cmd = m.auth.Update(msg)
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
 	case TabBody:
 		var cmd tea.Cmd
 		m.body, cmd = m.body.Update(msg)
@@ -312,6 +334,31 @@ func (m *HTTPForm) syncFocus() {
 func (m *HTTPForm) cycleMethod() {
 	m.methodIndex = (m.methodIndex + 1) % len(httpMethods)
 	m.Method = httpMethods[m.methodIndex]
+}
+
+// GetParams returns the current param pairs.
+func (m HTTPForm) GetParams() []components.KVPair {
+	return m.params.GetPairs()
+}
+
+// GetHeaders returns the current header pairs.
+func (m HTTPForm) GetHeaders() []components.KVPair {
+	return m.headers.GetPairs()
+}
+
+// GetBodyContent returns the current body text.
+func (m HTTPForm) GetBodyContent() string {
+	return strings.TrimSpace(m.body.Value())
+}
+
+// SetBody sets the body content.
+func (m *HTTPForm) SetBody(content string) {
+	m.body.SetValue(content)
+}
+
+// BuildAuth returns the auth configuration from the auth section.
+func (m HTTPForm) BuildAuth() *protocol.AuthConfig {
+	return m.auth.BuildAuth()
 }
 
 // BuildRequest constructs a protocol.Request from the form state.
@@ -340,6 +387,8 @@ func (m HTTPForm) BuildRequest() *protocol.Request {
 	if body != "" {
 		req.Body = []byte(body)
 	}
+
+	req.Auth = m.auth.BuildAuth()
 
 	return req
 }
@@ -379,6 +428,9 @@ func (m *HTTPForm) LoadRequest(req *collection.Request) {
 		m.body.SetValue(req.Body.Content)
 	}
 
+	// Load auth
+	m.auth.LoadAuth(req.Auth)
+
 	m.focusField = 1
 }
 
@@ -414,7 +466,7 @@ func (m HTTPForm) View() string {
 	case TabHeaders:
 		b.WriteString(m.headers.View())
 	case TabAuth:
-		b.WriteString(m.styles.Muted.Render("  No Auth configured"))
+		b.WriteString(m.auth.View())
 	case TabBody:
 		b.WriteString(m.body.View())
 	}

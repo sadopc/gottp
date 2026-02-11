@@ -3,20 +3,35 @@ package sidebar
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/serdar/gottp/internal/ui/msgs"
 	"github.com/serdar/gottp/internal/core/collection"
+	"github.com/serdar/gottp/internal/ui/msgs"
 	"github.com/serdar/gottp/internal/ui/theme"
 )
+
+// HistoryItem represents a request history entry for sidebar display.
+type HistoryItem struct {
+	ID         int64
+	Method     string
+	URL        string
+	StatusCode int
+	Duration   time.Duration
+	Timestamp  time.Time
+}
 
 // Model is the sidebar panel showing collections and history.
 type Model struct {
 	items    []collection.FlatItem
 	filtered []int // indices into items that match the filter
 	cursor   int   // index into filtered
+
+	historyItems  []HistoryItem
+	historyCursor int
+	inHistory     bool // whether cursor is in history section
 
 	width   int
 	height  int
@@ -51,6 +66,14 @@ func (m *Model) SetItems(items []collection.FlatItem) {
 	}
 }
 
+// SetHistory replaces the history items.
+func (m *Model) SetHistory(items []HistoryItem) {
+	m.historyItems = items
+	if m.historyCursor >= len(m.historyItems) {
+		m.historyCursor = max(0, len(m.historyItems)-1)
+	}
+}
+
 // SetSize sets the panel dimensions.
 func (m *Model) SetSize(w, h int) {
 	m.width = w
@@ -82,11 +105,22 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 }
 
 func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
-	if len(m.filtered) == 0 {
-		if msg.String() == "/" {
-			m.filtering = true
-			m.filterInput.Focus()
-			return m, textinput.Blink
+	switch msg.String() {
+	case "/":
+		m.filtering = true
+		m.filterInput.Focus()
+		return m, textinput.Blink
+	}
+
+	if m.inHistory {
+		return m.handleHistoryKey(msg)
+	}
+
+	if len(m.filtered) == 0 && len(m.historyItems) > 0 {
+		if msg.String() == "j" || msg.String() == "down" {
+			m.inHistory = true
+			m.historyCursor = 0
+			return m, nil
 		}
 		return m, nil
 	}
@@ -95,6 +129,10 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 	case "j", "down":
 		if m.cursor < len(m.filtered)-1 {
 			m.cursor++
+		} else if len(m.historyItems) > 0 {
+			// Move to history section
+			m.inHistory = true
+			m.historyCursor = 0
 		}
 	case "k", "up":
 		if m.cursor > 0 {
@@ -102,30 +140,68 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		}
 	case "g":
 		m.cursor = 0
+		m.inHistory = false
 	case "G":
-		m.cursor = len(m.filtered) - 1
+		if len(m.historyItems) > 0 {
+			m.inHistory = true
+			m.historyCursor = len(m.historyItems) - 1
+		} else {
+			m.cursor = len(m.filtered) - 1
+		}
 	case "enter", "l":
-		idx := m.filtered[m.cursor]
-		item := &m.items[idx]
-		if item.IsFolder {
-			m.toggleFolder(idx)
-		} else if item.Request != nil {
-			return m, func() tea.Msg {
-				return msgs.RequestSelectedMsg{RequestID: item.Request.ID}
+		if len(m.filtered) > 0 {
+			idx := m.filtered[m.cursor]
+			item := &m.items[idx]
+			if item.IsFolder {
+				m.toggleFolder(idx)
+			} else if item.Request != nil {
+				return m, func() tea.Msg {
+					return msgs.RequestSelectedMsg{RequestID: item.Request.ID}
+				}
 			}
 		}
 	case "h":
-		idx := m.filtered[m.cursor]
-		item := &m.items[idx]
-		if item.IsFolder && item.Expanded {
-			m.toggleFolder(idx)
+		if len(m.filtered) > 0 {
+			idx := m.filtered[m.cursor]
+			item := &m.items[idx]
+			if item.IsFolder && item.Expanded {
+				m.toggleFolder(idx)
+			}
 		}
-	case "/":
-		m.filtering = true
-		m.filterInput.Focus()
-		return m, textinput.Blink
 	}
 
+	return m, nil
+}
+
+func (m Model) handleHistoryKey(msg tea.KeyMsg) (Model, tea.Cmd) {
+	switch msg.String() {
+	case "j", "down":
+		if m.historyCursor < len(m.historyItems)-1 {
+			m.historyCursor++
+		}
+	case "k", "up":
+		if m.historyCursor > 0 {
+			m.historyCursor--
+		} else {
+			// Move back to collections
+			m.inHistory = false
+			if len(m.filtered) > 0 {
+				m.cursor = len(m.filtered) - 1
+			}
+		}
+	case "g":
+		m.inHistory = false
+		m.cursor = 0
+	case "G":
+		m.historyCursor = len(m.historyItems) - 1
+	case "enter", "l":
+		if m.historyCursor < len(m.historyItems) {
+			entry := m.historyItems[m.historyCursor]
+			return m, func() tea.Msg {
+				return msgs.HistorySelectedMsg{ID: entry.ID}
+			}
+		}
+	}
 	return m, nil
 }
 
@@ -240,11 +316,20 @@ func (m Model) View() string {
 		}
 	}
 
-	// History placeholder
-	historyHeader := fmt.Sprintf("\n%s\n%s",
-		m.styles.Title.Render("History"),
-		m.styles.Muted.Render("  No history yet"),
-	)
+	// History section
+	var historyLines []string
+	historyLines = append(historyLines, "")
+	historyLines = append(historyLines, m.styles.Title.Render("History"))
+	if len(m.historyItems) == 0 {
+		historyLines = append(historyLines, m.styles.Muted.Render("  No history yet"))
+	} else {
+		for i, entry := range m.historyItems {
+			isCursor := m.inHistory && i == m.historyCursor
+			line := m.renderHistoryItem(entry, isCursor, innerW)
+			historyLines = append(historyLines, line)
+		}
+	}
+	historyHeader := strings.Join(historyLines, "\n")
 
 	// Calculate available space
 	treeContent := strings.Join(lines, "\n")
@@ -297,6 +382,48 @@ func (m Model) renderItem(item collection.FlatItem, isCursor bool, maxWidth int)
 	}
 
 	return line
+}
+
+func (m Model) renderHistoryItem(entry HistoryItem, isCursor bool, maxWidth int) string {
+	method := padMethod(entry.Method)
+	badge := m.styles.MethodStyle(entry.Method).Render(method)
+
+	// Truncate URL for display
+	url := entry.URL
+	maxURL := maxWidth - 10
+	if maxURL < 10 {
+		maxURL = 10
+	}
+	if len(url) > maxURL {
+		url = url[:maxURL-3] + "..."
+	}
+
+	// Show relative time
+	ago := formatTimeAgo(entry.Timestamp)
+	agoStr := m.styles.Muted.Render(ago)
+
+	line := badge + " " + m.styles.TreeItem.PaddingLeft(0).Render(url) + " " + agoStr
+
+	if isCursor {
+		plain := stripForWidth(line, maxWidth)
+		return m.styles.Cursor.Width(maxWidth).Render(plain)
+	}
+
+	return line
+}
+
+func formatTimeAgo(t time.Time) string {
+	d := time.Since(t)
+	switch {
+	case d < time.Minute:
+		return "now"
+	case d < time.Hour:
+		return fmt.Sprintf("%dm", int(d.Minutes()))
+	case d < 24*time.Hour:
+		return fmt.Sprintf("%dh", int(d.Hours()))
+	default:
+		return fmt.Sprintf("%dd", int(d.Hours()/24))
+	}
 }
 
 // padMethod pads an HTTP method to 6 chars.
