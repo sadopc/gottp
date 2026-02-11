@@ -1,0 +1,60 @@
+name: Sample API
+version: "1"
+variables:
+  base_url: "https://jsonplaceholder.typicode.com"
+items:
+  - folder:
+      name: Posts
+      items:
+        - request:
+            name: List Posts
+            protocol: http
+            method: GET
+            url: "{{base_url}}/posts"
+            params:
+              - { key: _limit, value: "5", enabled: true }
+            headers:
+              - { key: Accept, value: application/json, enabled: true }
+        - request:
+            name: Get Post
+            protocol: http
+            method: GET
+            url: "{{base_url}}/posts/1"
+        - request:
+            name: Create Post
+            protocol: http
+            method: POST
+            url: "{{base_url}}/posts"
+            headers:
+              - { key: Content-Type, value: application/json, enabled: true }
+            body:
+              type: json
+              content: |
+                {
+                  "title": "New Post",
+                  "body": "This is the body",
+                  "userId": 1
+                }
+  - folder:
+      name: Users
+      items:
+        - request:
+            name: List Users
+            protocol: http
+            method: GET
+            url: "{{base_url}}/users"
+        - request:
+            name: Get User
+            protocol: http
+            method: GET
+            url: "{{base_url}}/users/1"
+  - folder:
+      name: Comments
+      items:
+        - request:
+            name: List Comments
+            protocol: http
+            method: GET
+            url: "{{base_url}}/comments"
+            params:
+              - { key: postId, value: "1", enabled: true }
