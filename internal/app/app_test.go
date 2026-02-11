@@ -709,11 +709,8 @@ func TestStatusMsg_WithoutDuration(t *testing.T) {
 
 	m, cmd := a.Update(msgs.StatusMsg{Text: "persistent"})
 	_ = m.(App)
-	// With zero duration, no tick cmd should be returned
-	if cmd != nil {
-		// cmd could be a batch, but the batch may contain nil cmds.
-		// At minimum, we verify no panic.
-	}
+	// With zero duration, message was just set (no error expected).
+	_ = cmd
 }
 
 func TestSwitchProtocolMsg(t *testing.T) {
@@ -735,8 +732,7 @@ func TestSwitchProtocolMsg(t *testing.T) {
 func TestEditorDoneMsg_WithContent(t *testing.T) {
 	a := testAppResized()
 
-	m, cmd := a.Update(msgs.EditorDoneMsg{Content: `{"key":"value"}`})
-	a = m.(App)
+	_, cmd := a.Update(msgs.EditorDoneMsg{Content: `{"key":"value"}`})
 
 	// Should return a toast cmd
 	if cmd == nil {
@@ -1027,8 +1023,7 @@ func TestSendRequest_EmptyURL(t *testing.T) {
 	m, _ := a.Update(msgs.NewRequestMsg{})
 	a = m.(App)
 
-	m, cmd := a.Update(msgs.SendRequestMsg{})
-	a = m.(App)
+	_, cmd := a.Update(msgs.SendRequestMsg{})
 
 	// With empty URL, sendRequest should set a status message and return nil cmd
 	if cmd != nil {

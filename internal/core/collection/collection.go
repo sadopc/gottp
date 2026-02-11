@@ -109,11 +109,11 @@ type OAuth2Auth struct {
 
 // AWSAuth holds AWS Signature v4 auth configuration in collection files.
 type AWSAuth struct {
-	AccessKeyID    string `yaml:"access_key_id"`
+	AccessKeyID     string `yaml:"access_key_id"`
 	SecretAccessKey string `yaml:"secret_access_key"`
-	SessionToken   string `yaml:"session_token,omitempty"`
-	Region         string `yaml:"region"`
-	Service        string `yaml:"service"`
+	SessionToken    string `yaml:"session_token,omitempty"`
+	Region          string `yaml:"region"`
+	Service         string `yaml:"service"`
 }
 
 // DigestAuth holds HTTP Digest auth credentials in collection files.
@@ -161,9 +161,9 @@ type Workflow struct {
 
 // WorkflowStep is a single step in a workflow.
 type WorkflowStep struct {
-	Request    string              `yaml:"request"`              // request name to execute
-	Extracts   map[string]string   `yaml:"extracts,omitempty"`   // var_name: jsonpath or js expression
-	Condition  string              `yaml:"condition,omitempty"`  // JS expression that must be truthy to continue
+	Request   string            `yaml:"request"`             // request name to execute
+	Extracts  map[string]string `yaml:"extracts,omitempty"`  // var_name: jsonpath or js expression
+	Condition string            `yaml:"condition,omitempty"` // JS expression that must be truthy to continue
 }
 
 // FlatItem represents a flattened tree item for display.

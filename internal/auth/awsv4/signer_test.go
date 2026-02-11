@@ -9,10 +9,10 @@ import (
 
 func TestSign(t *testing.T) {
 	cfg := AWSConfig{
-		AccessKeyID:    "AKIAIOSFODNN7EXAMPLE",
+		AccessKeyID:     "AKIAIOSFODNN7EXAMPLE",
 		SecretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
-		Region:         "us-east-1",
-		Service:        "s3",
+		Region:          "us-east-1",
+		Service:         "s3",
 	}
 
 	req, err := http.NewRequest("GET", "https://examplebucket.s3.amazonaws.com/test.txt", nil)
@@ -45,11 +45,11 @@ func TestSign(t *testing.T) {
 
 func TestSignWithSessionToken(t *testing.T) {
 	cfg := AWSConfig{
-		AccessKeyID:    "ASIAACCESSKEY",
+		AccessKeyID:     "ASIAACCESSKEY",
 		SecretAccessKey: "secretkey",
-		SessionToken:   "session-token-123",
-		Region:         "eu-west-1",
-		Service:        "execute-api",
+		SessionToken:    "session-token-123",
+		Region:          "eu-west-1",
+		Service:         "execute-api",
 	}
 
 	req, err := http.NewRequest("POST", "https://api.example.com/test", strings.NewReader(`{"key":"value"}`))

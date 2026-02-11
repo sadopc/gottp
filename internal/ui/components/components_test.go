@@ -874,7 +874,7 @@ func TestModal_Enter_FocusCancel_NoConfirm(t *testing.T) {
 func TestModal_IgnoresInputWhenHidden(t *testing.T) {
 	m := NewModal(testTheme(), testStyles())
 	// Not visible, should do nothing
-	m, cmd := m.Update(specialKeyMsg(tea.KeyEnter))
+	_, cmd := m.Update(specialKeyMsg(tea.KeyEnter))
 	if cmd != nil {
 		t.Fatal("hidden modal should not produce cmds")
 	}
@@ -1054,7 +1054,7 @@ func TestJumpOverlay_Esc_Closes(t *testing.T) {
 
 func TestJumpOverlay_IgnoresInputWhenHidden(t *testing.T) {
 	j := NewJumpOverlay(testTheme(), testStyles())
-	j, cmd := j.Update(keyMsg("a"))
+	_, cmd := j.Update(keyMsg("a"))
 	if cmd != nil {
 		t.Fatal("hidden overlay should not produce cmds")
 	}
@@ -1310,7 +1310,7 @@ func TestCommandPalette_ResetCommands(t *testing.T) {
 
 func TestCommandPalette_IgnoresInputWhenHidden(t *testing.T) {
 	cp := NewCommandPalette(testTheme(), testStyles())
-	cp, cmd := cp.Update(specialKeyMsg(tea.KeyEnter))
+	_, cmd := cp.Update(specialKeyMsg(tea.KeyEnter))
 	if cmd != nil {
 		t.Fatal("hidden palette should not produce cmds")
 	}
@@ -1435,7 +1435,7 @@ func TestHelp_QuestionMark_Closes(t *testing.T) {
 
 func TestHelp_IgnoresInputWhenHidden(t *testing.T) {
 	h := NewHelp(testTheme(), testStyles())
-	h, cmd := h.Update(specialKeyMsg(tea.KeyEscape))
+	_, cmd := h.Update(specialKeyMsg(tea.KeyEscape))
 	if cmd != nil {
 		t.Fatal("hidden help should not produce cmds")
 	}

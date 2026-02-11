@@ -12,14 +12,14 @@ type OpenTab struct {
 
 // Store holds the central application state.
 type Store struct {
-	Collection    *collection.Collection
+	Collection     *collection.Collection
 	CollectionPath string
 
-	ActiveEnv     string
-	EnvVars       map[string]string
+	ActiveEnv string
+	EnvVars   map[string]string
 
-	Tabs          []OpenTab
-	ActiveTab     int
+	Tabs      []OpenTab
+	ActiveTab int
 }
 
 // NewStore creates a new state store.
