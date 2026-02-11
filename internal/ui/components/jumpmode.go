@@ -11,19 +11,19 @@ import (
 
 // JumpTarget represents a focusable target in the UI.
 type JumpTarget struct {
-	Label  string        // displayed label (a-z, aa-az, ...)
-	Name   string        // human-readable name
+	Label  string // displayed label (a-z, aa-az, ...)
+	Name   string // human-readable name
 	Panel  msgs.PanelFocus
-	Action tea.Msg       // message to emit when selected
+	Action tea.Msg // message to emit when selected
 }
 
 // JumpOverlay manages jump-to-target navigation.
 type JumpOverlay struct {
-	Visible  bool
-	targets  []JumpTarget
-	typed    string
-	theme    theme.Theme
-	styles   theme.Styles
+	Visible bool
+	targets []JumpTarget
+	typed   string
+	theme   theme.Theme
+	styles  theme.Styles
 }
 
 // NewJumpOverlay creates a new jump overlay.

@@ -177,9 +177,7 @@ func TestDiffWords_SingleWordChange(t *testing.T) {
 		case Added:
 			added = append(added, w.Content)
 		case Same:
-			if w.Content == "hello" {
-				// expected
-			}
+			// expected — Same words like "hello" are shared between both sides
 		}
 	}
 	if len(removed) != 1 || removed[0] != "world" {

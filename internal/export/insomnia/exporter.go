@@ -160,5 +160,3 @@ func exportAuth(auth *collection.Auth) *insomniaAuth {
 	}
 	return nil
 }
-
-

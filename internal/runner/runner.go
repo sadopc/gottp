@@ -42,20 +42,20 @@ type Config struct {
 
 // Result holds execution results for a single request.
 type Result struct {
-	Name        string        `json:"name"`
-	Method      string        `json:"method"`
-	URL         string        `json:"url"`
-	StatusCode  int           `json:"status_code"`
-	Status      string        `json:"status"`
-	Duration    time.Duration `json:"duration"`
-	Size        int64         `json:"size"`
-	Error       error         `json:"-"`
-	ErrorString string        `json:"error,omitempty"`
-	ScriptLogs  []string      `json:"script_logs,omitempty"`
-	TestResults []TestResult  `json:"test_results,omitempty"`
-	TestsPassed bool          `json:"tests_passed"`
-	Body        []byte        `json:"-"`
-	BodyString  string        `json:"body,omitempty"`
+	Name        string              `json:"name"`
+	Method      string              `json:"method"`
+	URL         string              `json:"url"`
+	StatusCode  int                 `json:"status_code"`
+	Status      string              `json:"status"`
+	Duration    time.Duration       `json:"duration"`
+	Size        int64               `json:"size"`
+	Error       error               `json:"-"`
+	ErrorString string              `json:"error,omitempty"`
+	ScriptLogs  []string            `json:"script_logs,omitempty"`
+	TestResults []TestResult        `json:"test_results,omitempty"`
+	TestsPassed bool                `json:"tests_passed"`
+	Body        []byte              `json:"-"`
+	BodyString  string              `json:"body,omitempty"`
 	Headers     map[string][]string `json:"headers,omitempty"`
 }
 
@@ -427,11 +427,11 @@ func buildAuthConfig(auth *collection.Auth) *protocol.AuthConfig {
 	case "awsv4":
 		if auth.AWSAuth != nil {
 			cfg.AWSAuth = &protocol.AWSAuthConfig{
-				AccessKeyID:    auth.AWSAuth.AccessKeyID,
+				AccessKeyID:     auth.AWSAuth.AccessKeyID,
 				SecretAccessKey: auth.AWSAuth.SecretAccessKey,
-				SessionToken:   auth.AWSAuth.SessionToken,
-				Region:         auth.AWSAuth.Region,
-				Service:        auth.AWSAuth.Service,
+				SessionToken:    auth.AWSAuth.SessionToken,
+				Region:          auth.AWSAuth.Region,
+				Service:         auth.AWSAuth.Service,
 			}
 		}
 	case "digest":

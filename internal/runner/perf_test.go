@@ -54,9 +54,9 @@ func TestComparePerfBaseline(t *testing.T) {
 	}
 
 	results := []Result{
-		{Name: "Fast", Method: "GET", Duration: 150 * time.Millisecond},  // 50% slower -> regression at 20% threshold
-		{Name: "Slow", Method: "GET", Duration: 400 * time.Millisecond},  // 20% faster -> improvement
-		{Name: "New", Method: "POST", Duration: 200 * time.Millisecond},  // new request
+		{Name: "Fast", Method: "GET", Duration: 150 * time.Millisecond}, // 50% slower -> regression at 20% threshold
+		{Name: "Slow", Method: "GET", Duration: 400 * time.Millisecond}, // 20% faster -> improvement
+		{Name: "New", Method: "POST", Duration: 200 * time.Millisecond}, // new request
 	}
 
 	comparisons := ComparePerfBaseline(results, baseline, 20.0)

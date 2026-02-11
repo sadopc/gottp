@@ -146,8 +146,8 @@ func TestIntrospection(t *testing.T) {
 							},
 						},
 						{
-							"name": "__Schema",
-							"kind": "OBJECT",
+							"name":   "__Schema",
+							"kind":   "OBJECT",
 							"fields": nil,
 						},
 					},

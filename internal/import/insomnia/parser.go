@@ -10,21 +10,21 @@ import (
 )
 
 type insomniaExport struct {
-	Type      string              `json:"_type"`
-	Resources []insomniaResource  `json:"resources"`
+	Type      string             `json:"_type"`
+	Resources []insomniaResource `json:"resources"`
 }
 
 type insomniaResource struct {
-	ID             string         `json:"_id"`
-	Type           string         `json:"_type"`
-	ParentID       string         `json:"parentId"`
-	Name           string         `json:"name"`
-	Method         string         `json:"method"`
-	URL            string         `json:"url"`
-	Body           *insomniaBody  `json:"body,omitempty"`
-	Headers        []insomniaKV   `json:"headers,omitempty"`
-	Parameters     []insomniaKV   `json:"parameters,omitempty"`
-	Authentication *insomniaAuth  `json:"authentication,omitempty"`
+	ID             string        `json:"_id"`
+	Type           string        `json:"_type"`
+	ParentID       string        `json:"parentId"`
+	Name           string        `json:"name"`
+	Method         string        `json:"method"`
+	URL            string        `json:"url"`
+	Body           *insomniaBody `json:"body,omitempty"`
+	Headers        []insomniaKV  `json:"headers,omitempty"`
+	Parameters     []insomniaKV  `json:"parameters,omitempty"`
+	Authentication *insomniaAuth `json:"authentication,omitempty"`
 }
 
 type insomniaBody struct {

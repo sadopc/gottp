@@ -171,10 +171,10 @@ func TestContentTypeHeaders(t *testing.T) {
 	handler := srv.Handler()
 
 	tests := []struct {
-		name        string
-		method      string
-		path        string
-		wantCT      string
+		name   string
+		method string
+		path   string
+		wantCT string
 	}{
 		{"JSON response", "GET", "/users", "application/json"},
 		{"text response", "GET", "/health", "text/plain"},

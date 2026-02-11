@@ -17,7 +17,7 @@ type PanelLayout struct {
 }
 
 const (
-	tabBarHeight   = 1
+	tabBarHeight    = 1
 	statusBarHeight = 1
 	minSidebarWidth = 20
 	maxSidebarWidth = 35

@@ -83,11 +83,11 @@ type OAuth2AuthConfig struct {
 
 // AWSAuthConfig holds AWS Signature v4 auth settings.
 type AWSAuthConfig struct {
-	AccessKeyID    string
+	AccessKeyID     string
 	SecretAccessKey string
-	SessionToken   string
-	Region         string
-	Service        string
+	SessionToken    string
+	Region          string
+	Service         string
 }
 
 // TimingDetail holds detailed timing breakdown for a request.

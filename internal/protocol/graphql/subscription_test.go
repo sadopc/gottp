@@ -433,10 +433,8 @@ func TestSubscriptionReceivesMessages(t *testing.T) {
 
 	// Channel should be closed after complete.
 	select {
-	case _, ok := <-msgChan:
-		if ok {
-			// Might get one more msg before close, drain it.
-		}
+	case <-msgChan:
+		// Might get one more msg before close, drain it.
 	case <-time.After(3 * time.Second):
 		t.Log("channel not closed yet, which is OK if still draining")
 	}

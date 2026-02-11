@@ -19,8 +19,8 @@ func FuzzDetectFormat(f *testing.F) {
 	f.Add([]byte(`null`))
 	f.Add([]byte(`[]`))
 	f.Add([]byte(`not a format at all`))
-	f.Add([]byte(`  curl https://example.com`)) // leading whitespace before curl
-	f.Add([]byte(`{"_type":"request"}`))         // _type but not "export"
+	f.Add([]byte(`  curl https://example.com`))                   // leading whitespace before curl
+	f.Add([]byte(`{"_type":"request"}`))                          // _type but not "export"
 	f.Add([]byte("openapi: 3.0.0\ncomponents:\n  schemas: {}\n")) // openapi without paths
 
 	// Seed: precedence tests
@@ -28,10 +28,10 @@ func FuzzDetectFormat(f *testing.F) {
 	f.Add([]byte(`{"info":{"name":"n"},"item":[],"openapi":"3.0.0"}`))
 
 	// Seed: large-ish JSON structures
-	f.Add([]byte(`{"log":{"entries":[]}}`))                            // log without version (still HAR)
-	f.Add([]byte(`{"info":{"name":"test"}}`))                          // info without item (not postman)
-	f.Add([]byte(`{"item":[]}`))                                       // item without info (not postman)
-	f.Add([]byte(`{"_type":"export"}`))                                // insomnia missing resources
+	f.Add([]byte(`{"log":{"entries":[]}}`))   // log without version (still HAR)
+	f.Add([]byte(`{"info":{"name":"test"}}`)) // info without item (not postman)
+	f.Add([]byte(`{"item":[]}`))              // item without info (not postman)
+	f.Add([]byte(`{"_type":"export"}`))       // insomnia missing resources
 	f.Add([]byte(`{"openapi":"3.0.0","info":{"title":"t"},"paths":{}}`))
 
 	f.Fuzz(func(t *testing.T, data []byte) {
@@ -39,12 +39,12 @@ func FuzzDetectFormat(f *testing.F) {
 
 		// DetectFormat must not panic and must return one of the known values
 		validFormats := map[string]bool{
-			"curl":    true,
-			"postman": true,
+			"curl":     true,
+			"postman":  true,
 			"insomnia": true,
-			"openapi": true,
-			"har":     true,
-			"unknown": true,
+			"openapi":  true,
+			"har":      true,
+			"unknown":  true,
 		}
 		if !validFormats[format] {
 			t.Fatalf("DetectFormat returned unexpected format: %q", format)

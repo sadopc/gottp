@@ -73,8 +73,8 @@ func TestGenerateJavaScript(t *testing.T) {
 func TestGenerateWithAuth(t *testing.T) {
 	req := testRequest()
 	req.Auth = &protocol.AuthConfig{
-		Type:     "bearer",
-		Token:    "my-token-123",
+		Type:  "bearer",
+		Token: "my-token-123",
 	}
 
 	for _, lang := range Languages() {

@@ -208,9 +208,7 @@ func TestExecuteWithHealthService(t *testing.T) {
 	reflection.Register(srv)
 
 	go func() {
-		if err := srv.Serve(lis); err != nil {
-			// Server stopped, expected during cleanup.
-		}
+		_ = srv.Serve(lis)
 	}()
 	defer srv.Stop()
 

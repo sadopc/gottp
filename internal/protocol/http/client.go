@@ -411,11 +411,11 @@ func applyAuth(req *http.Request, auth *protocol.AuthConfig, body []byte) {
 	case "awsv4":
 		if auth.AWSAuth != nil {
 			cfg := awsv4.AWSConfig{
-				AccessKeyID:    auth.AWSAuth.AccessKeyID,
+				AccessKeyID:     auth.AWSAuth.AccessKeyID,
 				SecretAccessKey: auth.AWSAuth.SecretAccessKey,
-				SessionToken:   auth.AWSAuth.SessionToken,
-				Region:         auth.AWSAuth.Region,
-				Service:        auth.AWSAuth.Service,
+				SessionToken:    auth.AWSAuth.SessionToken,
+				Region:          auth.AWSAuth.Region,
+				Service:         auth.AWSAuth.Service,
 			}
 			_ = awsv4.Sign(req, body, cfg, time.Now())
 		}

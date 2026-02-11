@@ -9,9 +9,9 @@ import (
 
 // PerfBaseline holds timing baselines for requests.
 type PerfBaseline struct {
-	Version   string                    `json:"version"`
-	CreatedAt time.Time                 `json:"created_at"`
-	Entries   map[string]PerfBaseEntry  `json:"entries"` // keyed by request name
+	Version   string                   `json:"version"`
+	CreatedAt time.Time                `json:"created_at"`
+	Entries   map[string]PerfBaseEntry `json:"entries"` // keyed by request name
 }
 
 // PerfBaseEntry holds the baseline timing for a single request.

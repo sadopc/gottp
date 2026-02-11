@@ -6,7 +6,7 @@ import "unicode"
 type DiffType int
 
 const (
-	Same    DiffType = iota
+	Same DiffType = iota
 	Added
 	Removed
 )

@@ -48,13 +48,13 @@ type HARRequest struct {
 
 // HARResponse is the response portion of an entry.
 type HARResponse struct {
-	Status      int        `json:"status"`
-	StatusText  string     `json:"statusText"`
-	HTTPVersion string     `json:"httpVersion"`
+	Status      int         `json:"status"`
+	StatusText  string      `json:"statusText"`
+	HTTPVersion string      `json:"httpVersion"`
 	Headers     []HARHeader `json:"headers"`
-	Content     HARContent `json:"content"`
-	HeadersSize int        `json:"headersSize"`
-	BodySize    int        `json:"bodySize"`
+	Content     HARContent  `json:"content"`
+	HeadersSize int         `json:"headersSize"`
+	BodySize    int         `json:"bodySize"`
 }
 
 // HARHeader is a name/value pair for headers.

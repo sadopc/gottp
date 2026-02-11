@@ -77,10 +77,10 @@ type fakeMessage struct {
 	data string
 }
 
-func (f *fakeMessage) ProtoMessage()             {}
-func (f *fakeMessage) Reset()                    {}
-func (f *fakeMessage) String() string            { return f.data }
-func (f *fakeMessage) Marshal() ([]byte, error)  { return []byte(f.data), nil }
+func (f *fakeMessage) ProtoMessage()            {}
+func (f *fakeMessage) Reset()                   {}
+func (f *fakeMessage) String() string           { return f.data }
+func (f *fakeMessage) Marshal() ([]byte, error) { return []byte(f.data), nil }
 
 func TestResponseHandlerNonStreaming(t *testing.T) {
 	var buf bytes.Buffer
