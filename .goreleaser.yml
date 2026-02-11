@@ -36,7 +36,20 @@ checksum:
 changelog:
   use: github-native
 
+brews:
+  - repository:
+      owner: sadopc
+      name: homebrew-tap
+    directory: Formula
+    homepage: "https://github.com/sadopc/gottp"
+    description: "A Postman/Insomnia-like TUI API client built in Go"
+    license: "MIT"
+    install: |
+      bin.install "gottp"
+    test: |
+      assert_match version.to_s, shell_output("#{bin}/gottp --version")
+
 release:
   github:
-    owner: serdar
+    owner: sadopc
     name: gottp

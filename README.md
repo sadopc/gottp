@@ -59,11 +59,19 @@ A Postman/Insomnia-like TUI API client built in Go.
 
 ## Install
 
+### Homebrew (macOS/Linux)
+
+```bash
+brew install sadopc/tap/gottp
+```
+
+### Go Install
+
 ```bash
 go install github.com/serdar/gottp/cmd/gottp@latest
 ```
 
-Or build from source:
+### Build from Source
 
 ```bash
 git clone https://github.com/sadopc/gottp.git
